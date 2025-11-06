@@ -1,25 +1,22 @@
 # Dependencies
 node_modules
 .pnpm-store
-.pnpm
 
 # Build artifacts
 dist
 *.log
 
-# Version control & configs
+# VCS / config
 .git
 .gitignore
 Dockerfile
 docker-compose.yml
 
-# Environment files
+# Env / system
 .env
 .env.*
-
-# IDE files
-.vscode
 .idea
+.vscode
 
 # OS / misc
 .DS_Store

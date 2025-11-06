@@ -4,11 +4,14 @@ import { Module } from '@nestjs/common';
 import { DiscordClientModule } from '../clients/discord/discord.module';
 import { JellyfinClientModule } from '../clients/jellyfin/jellyfin.module';
 import { PlaybackModule } from '../playback/playback.module';
+
+// Commands
 import { PlaylistCommand } from './playlist/playlist.command';
 import { DisconnectCommand } from './disconnect.command';
 import { HelpCommand } from './help.command';
 import { PausePlaybackCommand } from './pause.command';
 import { PlayItemCommand } from './play/play.command';
+import { BrowseMusicCommand } from './play/play.browse.command';
 import { PreviousTrackCommand } from './previous.command';
 import { SkipTrackCommand } from './next.command';
 import { StatusCommand } from './status.command';
@@ -27,8 +30,8 @@ import { BotStatusCommand } from './bot_status/bot_status.command';
     DiscordClientModule,
     PlaybackModule,
   ],
-  controllers: [],
   providers: [
+    // Commands
     PlaylistInteractionCollector,
     HelpCommand,
     StatusCommand,
@@ -40,11 +43,12 @@ import { BotStatusCommand } from './bot_status/bot_status.command';
     StopPlaybackCommand,
     SummonCommand,
     PlayItemCommand,
+    BrowseMusicCommand,
     PreviousTrackCommand,
     VolumeCommand,
     ShuffleCommand,
     BotStatusCommand,
   ],
-  exports: [],
 })
 export class CommandModule {}
+

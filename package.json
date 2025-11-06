@@ -20,7 +20,8 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "deploy:commands": "ts-node src/clients/discord/register-commands.ts"
   },
   "dependencies": {
     "@discord-nestjs/common": "^5.2.12",
@@ -42,6 +43,7 @@
     "date-fns": "^2.30.0",
     "discord.js": "^14.17.3",
     "dotenv": "^17.2.0",
+    "fuse.js": "^7.1.0",
     "joi": "^17.13.3",
     "libsodium-wrappers": "^0.7.15",
     "opusscript": "^0.1.1",

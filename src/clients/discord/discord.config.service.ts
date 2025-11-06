@@ -19,6 +19,13 @@ export class DiscordConfigService implements DiscordOptionsFactory {
           GatewayIntentBits.GuildVoiceStates,
         ],
       },
+      registerCommandOptions: [
+        {
+          forGuild: process.env.GUILD_ID,
+          removeCommandsBefore: false,
+        },
+      ],
     };
   }
 }
+

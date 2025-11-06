@@ -133,46 +133,81 @@ export class PlayItemCommand {
     });
   }
 
-  @On(Events.InteractionCreate)
-  async onAutocomplete(interaction: Interaction) {
-    if (!interaction.isAutocomplete()) {
-      return;
+@On(Events.InteractionCreate)
+async onAutocomplete(interaction: Interaction) {
+  if (!interaction.isAutocomplete()) return;
+
+  const focused = interaction.options.getFocused(true);
+  const typeIndex = interaction.options.getInteger('type');
+  const type =
+    typeIndex !== null ? Object.values(SearchType)[typeIndex] : undefined;
+  const searchQuery = (focused.value ?? '').trim();
+
+  this.logger.debug(
+    `Running autocomplete for query '${searchQuery || '[empty]'}' (type: ${type})`,
+  );
+
+  const baseKinds = PlayCommandParams.getBaseItemKinds(type as SearchType);
+
+  // Always call Jellyfin, even if query is empty
+  const results = await this.jellyfinSearchService.searchItem(
+    searchQuery,
+    25,
+    baseKinds,
+  );
+
+  if (!results || results.length === 0) {
+    await interaction.respond([{ name: 'No results found', value: 'none' }]);
+    return;
+  }
+
+  // ✅ Batch enrich items
+  const { getItemsApi } = await import('@jellyfin/sdk/lib/utils/api/items-api');
+  const jellyfinCore = (this.jellyfinSearchService as any).jellyfinService;
+  const api = jellyfinCore.getApi();
+  const itemsApi = getItemsApi(api);
+
+  // collect IDs
+  const ids = results.slice(0, 25).map((r) => r.getId());
+  const enrichedResults: any[] = [];
+
+  try {
+    const { data } = await itemsApi.getItems({
+      ids,
+      userId: jellyfinCore.getUserId(),
+    });
+
+    for (const fullItem of data.Items || []) {
+      enrichedResults.push({
+        id: fullItem.Id,
+        name: fullItem.Name || 'Unknown',
+        type: fullItem.Type || 'Unknown',
+        artists:
+          fullItem.Artists?.map((a: any) => a.Name || a) ||
+          fullItem.AlbumArtists?.map((a: any) => a.Name || a) ||
+          [],
+      });
     }
+  } catch (err) {
+    this.logger.error(`Failed to enrich Jellyfin results: ${err}`);
+  }
 
-    const focusedAutoCompleteAction = interaction.options.getFocused(true);
-    const typeIndex = interaction.options.getInteger('type');
-    const type =
-      typeIndex !== null ? Object.values(SearchType)[typeIndex] : undefined;
-    const searchQuery = focusedAutoCompleteAction.value;
+  // ✅ Build Discord autocomplete options
+  const response = enrichedResults.map((item) => {
+    let emoji = '🎵';
+    if (item.type === 'MusicAlbum') emoji = '💿';
+    else if (item.type === 'Playlist') emoji = '📜';
 
-    if (!searchQuery || searchQuery.length < 1) {
-      await interaction.respond([]);
-      this.logger.debug(
-        'Did not attempt a search, because the auto-complete option was empty',
-      );
-      return;
-    }
+    const artistText = item.artists.length
+      ? ` (${item.artists.join(', ')})`
+      : '';
 
-    this.logger.debug(
-      `Initiating auto-complete search for query '${searchQuery}' with type '${type}'`,
-    );
+    return {
+      name: `${emoji} ${item.name}${artistText}`.slice(0, 100),
+      value: `native-${item.id}`,
+    };
+  });
 
-    const hints = await this.jellyfinSearchService.searchItem(
-      searchQuery,
-      20,
-      PlayCommandParams.getBaseItemKinds(type as SearchType),
-    );
-
-    if (hints.length === 0) {
-      await interaction.respond([]);
-      return;
-    }
-
-    await interaction.respond(
-      hints.map((hint) => ({
-        name: hint.toString(),
-        value: `native-${hint.getId()}`,
-      })),
-    );
+  await interaction.respond(response);
   }
 }
