@@ -33,7 +33,7 @@
 | Feature | Description |
 |----------|-------------|
 | 🔍 **Search System** | Fuse.js fuzzy search with album/artist weighting, typo-tolerance, and smart ranking |
-| 💽 **Album Handling** | Automatically fetches full tracklists when an album is detected |
+| 💽 **Album Handling** | Plays albums in order with tracklisting |
 | 🧠 **Multi-Word Queries** | Multi-term fallback intelligently splits phrases and merges results |
 | ⚡ **Caching** | In-memory album cache for instant repeated lookups |
 | 🧾 **Logging** | Detailed debug output with Fuse scores and ranked previews |
