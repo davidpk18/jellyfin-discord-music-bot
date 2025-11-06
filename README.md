@@ -26,6 +26,7 @@
   <img src="https://img.shields.io/badge/Docker-Ready-blue?style=flat-square" />
   <img src="https://img.shields.io/badge/Fuse.js-Enhanced%20Search-yellowgreen?style=flat-square" />
 </p>
+[![GHCR Image](https://ghcr-badge.egpl.dev/davidpk18/jellyfin-discord-music-bot-modified/latest_tag?label=GHCR%20Image&color=blue)](https://github.com/davidpk18/jellyfin-discord-music-bot/pkgs/container/jellyfin-discord-music-bot-modified)
 
 ---
 
