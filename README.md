@@ -1,66 +1,74 @@
 <p align="center">
-  <a href="https://nestjs.com/" target="blank"><img src="https://github.com/walkxcode/dashboard-icons/blob/main/png/jellyfin.png?raw=true" width="200" alt="Nest Logo" /></a>
+  <a href="https://nestjs.com/" target="blank"><img src="https://github.com/walkxcode/dashboard-icons/blob/main/png/jellyfin.png?raw=true" width="200" alt="Jellyfin Logo" /></a>
 </p>
 
-  <br/>
-  <h1 align="center">Jellyfin Discord Bot</h1>
-
-  <p align="center">A simple <a href="https://discord.com" target="_blank">Discord</a> bot that enables you to broadcast<br/>your <a href="https://jellyfin.org/" target="_blank">Jellyfin Media Server</a> music collection to voice channels.<br/>It's Open Source and can easily be hosted by yourself!</p>
+<h1 align="center">Jellyfin Discord Music Bot — redux 🎶</h1>
 
 <p align="center">
-  <small>Thank you <a href="https://github.com/KGT1/jellyfin-discord-music-bot/">KGT1</a> for starting this project!<br/>This is a fork of their original repository and re-uses some of their code.</small>
+  A fork of <a href="https://github.com/manuel-rw/jellyfin-discord-music-bot" target="_blank">Manuel-RW’s Jellyfin Discord Music Bot</a>, with a new /browse command, and somewhat streamlined search. A massive thank you to him for the repo.
 </p>
 
 <p align="center">
-  <a href="https://github.com/manuel-rw/jellyfin-discord-music-bot/wiki/%F0%9F%9A%80-Installation"><img src="https://img.shields.io/badge/-Installation%20Guide-7289da?style=for-the-badge&logo=markdown" alt="badge" /></a>
-  <a href="https://discord.gg/hRHZ3q3VDX"><img src="https://img.shields.io/badge/-Community%20Discord-7289da?style=for-the-badge&logo=discord" alt="badge" /></a>
-  <a href='https://ko-fi.com/A0A42YZ7W' target='_blank'><img src="https://img.shields.io/badge/-Buy%20me%20a%20coffee-f1f1f1?style=for-the-badge&logo=kofi" alt="badge" /></a>
-  <br/>
-  <br/>
+  <a href="https://github.com/manuel-rw/jellyfin-discord-music-bot/wiki/%F0%9F%9A%80-Installation"><img src="https://img.shields.io/badge/-Installation%20Guide-7289da?style=for-the-badge&logo=markdown" alt="Installation Badge" /></a>
+  <a href="https://discord.gg/hRHZ3q3VDX"><img src="https://img.shields.io/badge/-Community%20Discord-7289da?style=for-the-badge&logo=discord" alt="Community Discord" /></a>
+  <a href='https://ko-fi.com/A0A42YZ7W' target='_blank'><img src="https://img.shields.io/badge/-Support%20the%20Original%20Author-f1f1f1?style=for-the-badge&logo=kofi" alt="Support" /></a>
+  <br/><br/>
   <img src="https://github.com/manuel-rw/jellyfin-discord-music-bot/actions/workflows/docker.yml/badge.svg?branch=master" />
-  <img src="https://deepsource.io/gh/manuel-rw/jellyfin-discord-music-bot.svg/?label=active+issues&show_trend=true&token=vhfm8cbHaoCyXTf7Gfs9FweR)](https://deepsource.io/gh/manuel-rw/jellyfin-discord-music-bot/?ref=repository-badge" />
+  <img src="https://img.shields.io/badge/Docker-Ready-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/Fuse.js-Enhanced%20Search-yellowgreen?style=flat-square" />
 </p>
 
-<br/>
-<hr/>
-<br/>
+---
 
+## ✨ Features Overview — Improvements in This Fork
 
-## ✨ Features
+| Category | Fork|
+|-----------|---------------|------------------------------|
+| **Search System** | 🔍 **Fuse.js fuzzy search** with album/artist weighting, typo-tolerance, and smart ranking |
+| **Album Handling** | 💽 **Album-aware search** — automatically fetches full tracklists once an album is detected |
+| **Multi-Word Queries** | 🧠 **Multi-term fallback** — intelligently splits phrases and merges results |
+| **Caching** | ⚡ **In-memory album cache** for rapid repeated lookups |
+| **Logging & Debugging** | 🧾 **Detailed debug output** with Fuse scores and ranked result previews |
+| **Docker Support** | 🐳 **Confirmed compatible with Docker / Compose builds** on Ubuntu 24.04 |
+| **New Command** | 🎶 **`/browse` command** — jukebox-style Discord UI for browsing and playing Jellyfin music |
+| **Environment Variables** | 🧩 **Requires `GUILD_ID=`** for faster guild command registration |
+| **Kubernetes Method** | ⚠️ **Method 3 (K8S)** currently **untested** in this fork |
 
-- Lightweight and extendable using the [Nest](https://github.com/nestjs/nest) framework
-- Easy usage with Discord command system (e.g. ``/play``, ``/pause``, ...)
-- Fast and validated configuration using environment variables
-- Typesafe code for quicker development and less bugs
-- Supports ``Music``, ``Playlists`` and ``Albums`` from your Jellyfin instance
+---
 
-## 📌 About this project
-This project was originally started by [KGT1 on GitHub](https://github.com/KGT1/jellyfin-discord-music-bot/) in 2020. I came across this project in late 2021, when wanted to enjoy my music on Discord. I never got it to run as I wanted it to. Since the original project was created under the MIT license, I decided to make a fork in 2022 with my own version. Although this project re-uses some code of the original project, it has been completely rewritten in other parts using NestJs and features now a module-based approach.
+## 📚 Setup & Installation
 
-## ⛔ Limitations
+The [Jellyfin Discord Music Bot](https://github.com/manuel-rw/jellyfin-discord-music-bot/wiki) by **Manuel-RW** covers the installation process. Should be largely the same,
 
-- Bot does not support shards. This means, you cannot use it in multiple servers concurrently.
-- Album covers are not visible, unless they are remote (e.g. provided by external metadata provider)
-- Streaming any video content in voice channels (See [this issue](https://github.com/discordjs/discord.js/issues/4116))
+For full setup instructions, please refer to the original Wiki guides:
 
-## 🚀 Installation
+- 🧠 **[Initial Discord Bot Creation Guide](https://github.com/manuel-rw/jellyfin-discord-music-bot/wiki/%F0%9F%9A%80-Initial-Discord-Bot-Creation-Guide)**
+- ⚙️ **[Installation Methods](https://github.com/manuel-rw/jellyfin-discord-music-bot/wiki/%F0%9F%9A%80-Installation)**
+  - **Method 1: Docker Run**
+   <pre> ``` docker run \
+-p 3000:3000 \
+-e DISCORD_CLIENT_TOKEN='' \
+-e JELLYFIN_SERVER_ADDRESS='' \
+-e JELLYFIN_AUTHENTICATION_USERNAME='' \
+-e JELLYFIN_AUTHENTICATION_PASSWORD='' \
+ghcr.io/davidpk18/jellyfin-discord-music-bot-modified:latest ``` <pre>
 
-Please check out the Wiki section in the repository for installation instructions:
-
-https://github.com/manuel-rw/jellyfin-discord-music-bot/wiki
-
-
-## 💻 Development
-
-I'm open to any contributions to this project. You can start contributing using the following commands, after executing the installation commands:
-
-## 👤 Credits
-
-- https://tabler-icons.io/
-- https://docs.nestjs.com/
-- https://discord.js.org/
-- https://github.com/fjodor-rybakov/discord-nestjs
-- https://github.com/jellyfin/jellyfin-sdk-typescript
-- https://jellyfin.org/
-- https://github.com/KGT1/jellyfin-discord-music-bot
-- https://gitmoji.dev/
+  - **Method 2: Docker Compose**
+    <pre>``` version: '3.3'
+services:
+  manuel-rw:
+    ports:
+      - '3000:3000'
+    environment:
+      - DISCORD_CLIENT_TOKEN=
+      - GUILD_ID=
+      - JELLYFIN_SERVER_ADDRESS=
+      - JELLYFIN_AUTHENTICATION_USERNAME=
+      - JELLYFIN_AUTHENTICATION_PASSWORD=
+    image: 'ghcr.io/davidpk18/jellyfin-discord-music-bot-modified:latest' ``` </pre>
+    
+  - **Method 4: Run From Source**
+    git clone https://github.com/davidpk18/jellyfin-discord-music-bot.git
+    cd jellyfin-discord-music-bot/
+FOLLOW REST OF INSTRUCTIONS **[HERE](https://github.com/manuel-rw/jellyfin-discord-music-bot/wiki/%F0%9F%9A%80-Installation#method-4-run-from-source), DON'T FORGET GUILD_ID=
+---
