@@ -22,8 +22,7 @@
     <img src="https://img.shields.io/badge/-Support%20the%20Original%20Author-f1f1f1?style=for-the-badge&logo=kofi" alt="Support" />
   </a>
   <br/><br/>
-  [![Docker Ready](https://img.shields.io/badge/Docker-Ready-blue?style=flat-square)](https://github.com/davidpk18/jellyfin-discord-music-bot/pkgs/container/jellyfin-discord-music-bot-modified)
-  <img src="https://img.shields.io/badge/Fuse.js-Enhanced%20Search-yellowgreen?style=flat-square" />
+
 </p>
 
 
