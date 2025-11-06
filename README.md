@@ -20,6 +20,8 @@
   </a>
   <a href='https://ko-fi.com/A0A42YZ7W' target='_blank'>
     <img src="https://img.shields.io/badge/-Support%20the%20Original%20Author-f1f1f1?style=for-the-badge&logo=kofi" alt="Support" />
+  <a href='https://buymeacoffee.com/davejone' target='_blank'>
+    <img src="https://img.shields.io/badge/-I%20LOVE%20COFFEE%-f1f1f1?style=for-the-badge&logo=buymeacoffee" alt="Support" />
   </a>
   <br/><br/>
 
