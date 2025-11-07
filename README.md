@@ -46,6 +46,25 @@
 
 ---
 
+## 🎬 Feature Showcase
+
+<p align="center">
+  <a href="https://github.com/davidpk18/jellyfin-discord-music-bot/blob/dev/images/slashbrowse.gif">
+    <img src="https://github.com/davidpk18/jellyfin-discord-music-bot/blob/dev/images/slashbrowse.gif" 
+         alt="/browse command demo" width="48%" style="border-radius:10px; margin-right: 1%;" />
+  </a>
+  <a href="https://github.com/davidpk18/jellyfin-discord-music-bot/blob/dev/images/slashplay.gif">
+    <img src="https://github.com/davidpk18/jellyfin-discord-music-bot/blob/dev/images/slashplay.gif" 
+         alt="/play command demo" width="48%" style="border-radius:10px; margin-left: 1%;" />
+  </a>
+</p>
+
+<p align="center">
+  <em>Left: the new <strong>/browse</strong> jukebox UI • Right: enhanced <strong>/play</strong> search experience</em>
+</p>
+
+---
+
 ## 📚 Setup & Installation
 
 This fork follows the same installation structure as the original project by **[Manuel-RW](https://github.com/manuel-rw/jellyfin-discord-music-bot/wiki)**.  
