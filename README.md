@@ -78,7 +78,7 @@ Please refer to his excellent wiki for detailed setup guidance:
 ### 🐳 **Method 1 — Docker Run**
 
 ```bash
-docker run -d   -p 3000:3000   -e DISCORD_CLIENT_TOKEN='YOUR_DISCORD_BOT_TOKEN'   -e GUILD_ID='YOUR_GUILD_ID'   -e JELLYFIN_SERVER_ADDRESS='http://your.jellyfin.ip:8096'   -e JELLYFIN_AUTHENTICATION_USERNAME='username'   -e JELLYFIN_AUTHENTICATION_PASSWORD='password'   ghcr.io/davidpk18/jellyfin-discord-music-bot-modified:latest
+docker run -d   -p 3000:3000   -v ./config:/app/config   -e DISCORD_CLIENT_TOKEN='YOUR_DISCORD_BOT_TOKEN'   -e GUILD_ID='YOUR_GUILD_ID'   -e JELLYFIN_SERVER_ADDRESS='http://your.jellyfin.ip:8096'   -e JELLYFIN_AUTHENTICATION_USERNAME='username'   -e JELLYFIN_AUTHENTICATION_PASSWORD='password'   ghcr.io/davidpk18/jellyfin-discord-music-bot:latest
 ```
 
 ---
@@ -86,11 +86,12 @@ docker run -d   -p 3000:3000   -e DISCORD_CLIENT_TOKEN='YOUR_DISCORD_BOT_TOKEN' 
 ### 🧩 **Method 2 — Docker Compose**
 
 ```yaml
-version: '3.3'
 services:
   jellyfin-discord-bot:
-    image: ghcr.io/davidpk18/jellyfin-discord-music-bot-modified:latest
+    image: ghcr.io/davidpk18/jellyfin-discord-music-bot:latest
     container_name: jellyfin-discord-bot
+    volumes:
+      - ./config:/app/config
     ports:
       - "3000:3000"
     environment:
