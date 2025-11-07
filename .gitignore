@@ -38,3 +38,8 @@ lerna-debug.log*
 
 # Secrets
 *.env
+
+#file
+config/volume.json
+
+config/volume.json
