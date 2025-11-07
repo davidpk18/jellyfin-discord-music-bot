@@ -25,3 +25,5 @@ docker-compose.yml
 .DS_Store
 Thumbs.db
 
+#json
+config/volume.json
