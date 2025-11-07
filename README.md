@@ -66,8 +66,8 @@
 ---
 
 ## 📚 Setup & Installation
-
-This fork follows the same installation structure as the original project by **[Manuel-RW](https://github.com/manuel-rw/jellyfin-discord-music-bot/wiki)**.  
+### DOCKER IMAGE: ghcr.io/davidpk18/jellyfin-discord-music-bot:latest
+Besides the Docker image itself, this fork mostly follows the same installation structure as the original project by **[Manuel-RW](https://github.com/manuel-rw/jellyfin-discord-music-bot/wiki)**.  
 Please refer to his excellent wiki for detailed setup guidance:
 
 - 🧠 [Initial Discord Bot Creation Guide](https://github.com/manuel-rw/jellyfin-discord-music-bot/wiki/%F0%9F%9A%80-Initial-Discord-Bot-Creation-Guide)
