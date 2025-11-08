@@ -8,7 +8,7 @@ import { getItemsApi } from '@jellyfin/sdk/lib/utils/api/items-api';
 import { getPlaylistsApi } from '@jellyfin/sdk/lib/utils/api/playlists-api';
 import { getRemoteImageApi } from '@jellyfin/sdk/lib/utils/api/remote-image-api';
 import { Injectable, Logger } from '@nestjs/common';
-
+import { getSearchApi } from '@jellyfin/sdk/lib/utils/api/search-api'
 import { AlbumSearchItem } from '../../models/search/AlbumSearchItem';
 import { PlaylistSearchItem } from '../../models/search/PlaylistSearchItem';
 import { SearchItem } from '../../models/search/SearchItem';
@@ -138,26 +138,26 @@ export class JellyfinSearchService {
       // 🎛️ Fuse passes
       const fuse = new Fuse(fuseData, {
         keys: [
-          { name: 'albumFullName', weight: 0.6 },
-          { name: 'album', weight: 0.25 },
-          { name: 'name', weight: 0.1 },
-          { name: 'artists', weight: 0.05 },
+          { name: 'albumFullName', weight: 0.1 },
+          { name: 'album', weight: 0.15 },
+          { name: 'name', weight: 0.25 },
+          { name: 'artists', weight: 0.5 },
         ],
-        threshold: 0.55,
-        distance: 300,
+        threshold: 1,
+        distance: 750,
         ignoreLocation: true,
         includeScore: true,
       });
 
       const fuseAlbums = new Fuse(fuseData, {
         keys: [
-          { name: 'albumFullName', weight: 0.75 },
-          { name: 'album', weight: 0.15 },
-          { name: 'artists', weight: 0.07 },
-          { name: 'name', weight: 0.03 },
+          { name: 'albumFullName', weight: 0.15 },
+          { name: 'album', weight: 0.3 },
+          { name: 'artists', weight: 0.3 },
+          { name: 'name', weight: 0.25 },
         ],
-        threshold: 0.55,
-        distance: 300,
+        threshold: 1,
+        distance: 600,
         ignoreLocation: true,
         includeScore: true,
       });
@@ -382,34 +382,61 @@ export class JellyfinSearchService {
 
   async getAlbumItems(albumId: string): Promise<SearchItem[]> {
     const api = this.jellyfinService.getApi();
+    const userId = this.jellyfinService.getUserId();
     const itemsApi = getItemsApi(api);
+    const searchApi = getSearchApi(api);
 
     try {
-      const axiosResponse = await itemsApi.getItems({
+      // 🟢 Primary attempt: use getItemsApi (more complete metadata)
+      const itemResponse = await itemsApi.getItems({
         parentId: albumId,
-        userId: this.jellyfinService.getUserId(),
+        userId,
         includeItemTypes: [BaseItemKind.Audio],
         sortBy: ['IndexNumber'],
-        sortOrder: ['Descending' as any],
         recursive: true,
       });
 
-      if (axiosResponse.status !== 200) {
-        this.logger.error(
-          `Jellyfin getAlbumItems failed with status code ${axiosResponse.status}`,
+      let items = itemResponse.data?.Items ?? [];
+
+      if (itemResponse.status !== 200) {
+        this.logger.warn(
+          `getAlbumItems: itemsApi returned status ${itemResponse.status} — switching to searchApi fallback.`,
         );
-        return [];
+        items = [];
       }
 
-      const items = axiosResponse.data.Items;
       if (!items || items.length === 0) {
-        this.logger.warn(`No tracks found for album ${albumId}`);
+        // 🧩 Fallback attempt using searchApi
+        this.logger.log(`getAlbumItems: No results from itemsApi, falling back to searchApi.`);
+
+        const searchResponse = await searchApi.get({
+          parentId: albumId,
+          userId,
+          mediaTypes: [BaseItemKind[BaseItemKind.Audio]],
+          searchTerm: '%', // wildcard to get all tracks
+        });
+
+        if (searchResponse.status === 200 && searchResponse.data?.SearchHints?.length) {
+          const hints = searchResponse.data.SearchHints || [];
+          this.logger.log(`✅ Fallback via searchApi succeeded (${hints.length} items).`);
+
+          // Sort & return from hint-based structure
+          return hints
+            .sort((a: any, b: any) => (a.IndexNumber ?? 0) - (b.IndexNumber ?? 0))
+            .map((hint: any) => SearchItem.constructFromHint(hint));
+        }
+
+        this.logger.warn(`⚠️ Fallback via searchApi also returned no items.`);
         return [];
       }
 
+      // 🧮 Sort for playback order
+      items.sort((a: any, b: any) => (a.IndexNumber ?? 0) - (b.IndexNumber ?? 0));
+
+      // 🧱 Construct standard SearchItems for Fuse + playback
       return items.map((item) => SearchItem.constructFromBaseItem(item));
     } catch (err) {
-      this.logger.error(`Failed to retrieve album items: ${err}`);
+      this.logger.error(`getAlbumItems: unexpected failure — ${err}`);
       return [];
     }
   }
