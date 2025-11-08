@@ -591,8 +591,7 @@ export class BrowseMusicCommand {
     }
 
     const tracks = await (
-      await searchItem.toTracks(this.jellyfinSearchService)
-    ).reverse();
+      await searchItem.toTracks(this.jellyfinSearchService));
     this.playbackService.getPlaylistOrDefault().enqueueTracks(tracks, false);
 
     const remoteImage = tracks[0]?.getRemoteImages()?.[0];
