@@ -8,7 +8,7 @@ import { getItemsApi } from '@jellyfin/sdk/lib/utils/api/items-api';
 import { getPlaylistsApi } from '@jellyfin/sdk/lib/utils/api/playlists-api';
 import { getRemoteImageApi } from '@jellyfin/sdk/lib/utils/api/remote-image-api';
 import { Injectable, Logger } from '@nestjs/common';
-
+import { getSearchApi } from '@jellyfin/sdk/lib/utils/api/search-api';
 import { AlbumSearchItem } from '../../models/search/AlbumSearchItem';
 import { PlaylistSearchItem } from '../../models/search/PlaylistSearchItem';
 import { SearchItem } from '../../models/search/SearchItem';
@@ -16,7 +16,7 @@ import { JellyfinService } from './jellyfin.service';
 
 // ✅ Fuse import that works in both ESM and CommonJS (Docker-safe)
 import * as FuseModule from 'fuse.js';
-const Fuse = (FuseModule as any).default || FuseModule as any;
+const Fuse = (FuseModule as any).default || (FuseModule as any);
 
 @Injectable()
 export class JellyfinSearchService {
@@ -49,7 +49,9 @@ export class JellyfinSearchService {
           limit,
           sortBy: ['SortName'],
         });
-        return (data.Items || []).map((i) => SearchItem.constructFromBaseItem(i));
+        return (data.Items || []).map((i) =>
+          SearchItem.constructFromBaseItem(i),
+        );
       }
 
       const term = searchTerm.trim().toLowerCase();
@@ -80,7 +82,9 @@ export class JellyfinSearchService {
           });
           termResults.push(...(data.Items || []));
         }
-        results = Array.from(new Map(termResults.map((i) => [i.Id, i])).values());
+        results = Array.from(
+          new Map(termResults.map((i) => [i.Id, i])).values(),
+        );
         this.logger.log(
           `Multi-term fallback activated — combined results: ${results.length}`,
         );
@@ -94,7 +98,8 @@ export class JellyfinSearchService {
           typeCounts[typeKey] = (typeCounts[typeKey] || 0) + 1;
         }
         this.logger.log(
-          `Fetched from Jellyfin: ${typeCounts['MusicAlbum'] || 0} albums, ${typeCounts['Audio'] || 0
+          `Fetched from Jellyfin: ${typeCounts['MusicAlbum'] || 0} albums, ${
+            typeCounts['Audio'] || 0
           } tracks`,
         );
       }
@@ -105,10 +110,10 @@ export class JellyfinSearchService {
           item.Name,
           item.Album,
           ...(item.Artists || []).map((a: any) =>
-            typeof a === 'string' ? a : a?.Name ?? '',
+            typeof a === 'string' ? a : (a?.Name ?? ''),
           ),
           ...(item.AlbumArtists || []).map((a: any) =>
-            typeof a === 'string' ? a : a?.Name ?? '',
+            typeof a === 'string' ? a : (a?.Name ?? ''),
           ),
         ]
           .filter(Boolean)
@@ -131,33 +136,34 @@ export class JellyfinSearchService {
       // 🧩 Add combined “album + artist” field
       for (const item of fuseData) {
         const albumName = (item.album || '').toLowerCase();
-        const artistNames = `${item.artists} ${item.albumArtists}`.toLowerCase();
+        const artistNames =
+          `${item.artists} ${item.albumArtists}`.toLowerCase();
         (item as any).albumFullName = `${artistNames} ${albumName}`.trim();
       }
 
       // 🎛️ Fuse passes
       const fuse = new Fuse(fuseData, {
         keys: [
-          { name: 'albumFullName', weight: 0.6 },
-          { name: 'album', weight: 0.25 },
-          { name: 'name', weight: 0.1 },
-          { name: 'artists', weight: 0.05 },
+          { name: 'albumFullName', weight: 0.1 },
+          { name: 'album', weight: 0.15 },
+          { name: 'name', weight: 0.25 },
+          { name: 'artists', weight: 0.5 },
         ],
-        threshold: 0.55,
-        distance: 300,
+        threshold: 1,
+        distance: 750,
         ignoreLocation: true,
         includeScore: true,
       });
 
       const fuseAlbums = new Fuse(fuseData, {
         keys: [
-          { name: 'albumFullName', weight: 0.75 },
-          { name: 'album', weight: 0.15 },
-          { name: 'artists', weight: 0.07 },
-          { name: 'name', weight: 0.03 },
+          { name: 'albumFullName', weight: 0.15 },
+          { name: 'album', weight: 0.3 },
+          { name: 'artists', weight: 0.3 },
+          { name: 'name', weight: 0.25 },
         ],
-        threshold: 0.55,
-        distance: 300,
+        threshold: 1,
+        distance: 600,
         ignoreLocation: true,
         includeScore: true,
       });
@@ -171,11 +177,15 @@ export class JellyfinSearchService {
 
       // 🧩 Debug fuse scores
       if (DEBUG_FUSE) {
-        const logHits = (label: string, hits: Array<{ item: any; score?: number }>) => {
+        const logHits = (
+          label: string,
+          hits: Array<{ item: any; score?: number }>,
+        ) => {
           this.logger.log(`${label}: ${hits.length} hits`);
           hits.slice(0, 10).forEach((h, i) => {
             this.logger.log(
-              `${i + 1}. ${h.item.Type} | ${h.item.Name} | Score: ${typeof h.score === 'number' ? h.score.toFixed(3) : 'N/A'
+              `${i + 1}. ${h.item.Type} | ${h.item.Name} | Score: ${
+                typeof h.score === 'number' ? h.score.toFixed(3) : 'N/A'
               }`,
             );
           });
@@ -202,7 +212,9 @@ export class JellyfinSearchService {
       }
 
       if (!albumAtTop) {
-        this.logger.log('⚠️ No album detected in Fuse results — checking Jellyfin directly.');
+        this.logger.log(
+          '⚠️ No album detected in Fuse results — checking Jellyfin directly.',
+        );
         // attempt to fetch a matching album directly via Jellyfin by album keyword
         const { data: albumSearch } = await itemsApi.getItems({
           includeItemTypes: [BaseItemKind.MusicAlbum],
@@ -215,7 +227,9 @@ export class JellyfinSearchService {
         if (albumSearch?.Items?.length) {
           albumAtTop = albumSearch.Items[0];
           ranked.unshift(albumAtTop);
-          this.logger.log(`✅ Injected album "${albumAtTop.Name}" from direct Jellyfin query`);
+          this.logger.log(
+            `✅ Injected album "${albumAtTop.Name}" from direct Jellyfin query`,
+          );
         }
       }
 
@@ -234,18 +248,27 @@ export class JellyfinSearchService {
             });
             albumTracks = albumChildren.Items || [];
             this.albumCache.set(albumAtTop.Id, albumTracks);
-            this.logger.log(`Fetched ${albumTracks.length} tracks from album "${albumAtTop.Name}"`);
+            this.logger.log(
+              `Fetched ${albumTracks.length} tracks from album "${albumAtTop.Name}"`,
+            );
           } else {
-            this.logger.log(`Loaded ${albumTracks.length} cached tracks for "${albumAtTop.Name}"`);
+            this.logger.log(
+              `Loaded ${albumTracks.length} cached tracks for "${albumAtTop.Name}"`,
+            );
           }
 
           // 🔗 Normalize & merge into Fuse dataset
           const normalize = (s: string) =>
-            s?.toLowerCase()?.replace(/[^\w\s]|_/g, '')?.trim() || '';
+            s
+              ?.toLowerCase()
+              ?.replace(/[^\w\s]|_/g, '')
+              ?.trim() || '';
           const albumNameNorm = normalize(albumAtTop.Name || '');
-          const albumArtistsNorm = ((albumAtTop.AlbumArtists || [])
-            .map((a: any) => (a?.Name || a || '').toLowerCase())
-            .join(' ') || '').trim();
+          const albumArtistsNorm = (
+            (albumAtTop.AlbumArtists || [])
+              .map((a: any) => (a?.Name || a || '').toLowerCase())
+              .join(' ') || ''
+          ).trim();
 
           const fuseIds = new Set(fuseData.map((f) => f.Id));
           for (const t of albumTracks) {
@@ -254,7 +277,9 @@ export class JellyfinSearchService {
                 ...t,
                 name: t.Name || '',
                 album: t.Album || '',
-                artists: (t.Artists || []).map((a: any) => a?.Name || a).join(' '),
+                artists: (t.Artists || [])
+                  .map((a: any) => a?.Name || a)
+                  .join(' '),
                 albumArtists: (t.AlbumArtists || [])
                   .map((a: any) => a?.Name || a)
                   .join(' '),
@@ -269,11 +294,16 @@ export class JellyfinSearchService {
               const trackAlbum = normalize(r.Album);
               const trackArtists = (r.artists || '').toLowerCase();
               const albumMatch =
-                trackAlbum.includes(albumNameNorm) || albumNameNorm.includes(trackAlbum);
+                trackAlbum.includes(albumNameNorm) ||
+                albumNameNorm.includes(trackAlbum);
               const artistOverlap =
                 albumArtistsNorm &&
-                (albumArtistsNorm.split(/\s+/).some((a) => trackArtists.includes(a)) ||
-                  trackArtists.split(/\s+/).some((a) => albumArtistsNorm.includes(a)));
+                (albumArtistsNorm
+                  .split(/\s+/)
+                  .some((a) => trackArtists.includes(a)) ||
+                  trackArtists
+                    .split(/\s+/)
+                    .some((a) => albumArtistsNorm.includes(a)));
               return albumMatch || artistOverlap;
             })
             .sort((a, b) => (a.IndexNumber ?? 0) - (b.IndexNumber ?? 0));
@@ -290,7 +320,9 @@ export class JellyfinSearchService {
             ranked.splice(albumIndex + 1, 0, ...uniqueRelated);
           }
         } catch (e) {
-          this.logger.warn(`Failed to fetch tracks for album ${albumAtTop?.Name}: ${e}`);
+          this.logger.warn(
+            `Failed to fetch tracks for album ${albumAtTop?.Name}: ${e}`,
+          );
         }
       }
 
@@ -305,9 +337,13 @@ export class JellyfinSearchService {
 
       // 🧾 Optional concise debug summary
       if (DEBUG_FUSE) {
-        const albumCount = finalRanked.filter((r) => r.Type === 'MusicAlbum').length;
+        const albumCount = finalRanked.filter(
+          (r) => r.Type === 'MusicAlbum',
+        ).length;
         const trackCount = finalRanked.filter((r) => r.Type === 'Audio').length;
-        this.logger.log(`Final ranked list: ${albumCount} albums, ${trackCount} tracks`);
+        this.logger.log(
+          `Final ranked list: ${albumCount} albums, ${trackCount} tracks`,
+        );
       }
 
       // 🎁 Construct final SearchItems (for Discord embed layer)
@@ -327,7 +363,7 @@ export class JellyfinSearchService {
               base.Type ??
               base.type ??
               base.kind ??
-              (r instanceof SearchItem ? (r as any).kind ?? 'Item' : 'Item');
+              (r instanceof SearchItem ? ((r as any).kind ?? 'Item') : 'Item');
 
             const name =
               base.Name ??
@@ -340,7 +376,9 @@ export class JellyfinSearchService {
           })
           .join('\n');
 
-        this.logger.log(`Returning ${finalResults.length} results:\n${preview}`);
+        this.logger.log(
+          `Returning ${finalResults.length} results:\n${preview}`,
+        );
       }
 
       return finalResults;
@@ -382,34 +420,72 @@ export class JellyfinSearchService {
 
   async getAlbumItems(albumId: string): Promise<SearchItem[]> {
     const api = this.jellyfinService.getApi();
+    const userId = this.jellyfinService.getUserId();
     const itemsApi = getItemsApi(api);
+    const searchApi = getSearchApi(api);
 
     try {
-      const axiosResponse = await itemsApi.getItems({
+      // 🟢 Primary attempt: use getItemsApi (more complete metadata)
+      const itemResponse = await itemsApi.getItems({
         parentId: albumId,
-        userId: this.jellyfinService.getUserId(),
+        userId,
         includeItemTypes: [BaseItemKind.Audio],
         sortBy: ['IndexNumber'],
-        sortOrder: ['Descending' as any],
         recursive: true,
       });
 
-      if (axiosResponse.status !== 200) {
-        this.logger.error(
-          `Jellyfin getAlbumItems failed with status code ${axiosResponse.status}`,
+      let items = itemResponse.data?.Items ?? [];
+
+      if (itemResponse.status !== 200) {
+        this.logger.warn(
+          `getAlbumItems: itemsApi returned status ${itemResponse.status} — switching to searchApi fallback.`,
         );
-        return [];
+        items = [];
       }
 
-      const items = axiosResponse.data.Items;
       if (!items || items.length === 0) {
-        this.logger.warn(`No tracks found for album ${albumId}`);
+        // 🧩 Fallback attempt using searchApi
+        this.logger.log(
+          `getAlbumItems: No results from itemsApi, falling back to searchApi.`,
+        );
+
+        const searchResponse = await searchApi.get({
+          parentId: albumId,
+          userId,
+          mediaTypes: [BaseItemKind[BaseItemKind.Audio]],
+          searchTerm: '%', // wildcard to get all tracks
+        });
+
+        if (
+          searchResponse.status === 200 &&
+          searchResponse.data?.SearchHints?.length
+        ) {
+          const hints = searchResponse.data.SearchHints || [];
+          this.logger.log(
+            `✅ Fallback via searchApi succeeded (${hints.length} items).`,
+          );
+
+          // Sort & return from hint-based structure
+          return hints
+            .sort(
+              (a: any, b: any) => (a.IndexNumber ?? 0) - (b.IndexNumber ?? 0),
+            )
+            .map((hint: any) => SearchItem.constructFromHint(hint));
+        }
+
+        this.logger.warn(`⚠️ Fallback via searchApi also returned no items.`);
         return [];
       }
 
+      // 🧮 Sort for playback order
+      items.sort(
+        (a: any, b: any) => (a.IndexNumber ?? 0) - (b.IndexNumber ?? 0),
+      );
+
+      // 🧱 Construct standard SearchItems for Fuse + playback
       return items.map((item) => SearchItem.constructFromBaseItem(item));
     } catch (err) {
-      this.logger.error(`Failed to retrieve album items: ${err}`);
+      this.logger.error(`getAlbumItems: unexpected failure — ${err}`);
       return [];
     }
   }
@@ -522,7 +598,9 @@ export class JellyfinSearchService {
         SearchItem.constructFromBaseItem(item),
       );
     } catch (err) {
-      this.logger.error(`Unable to retrieve random items from Jellyfin: ${err}`);
+      this.logger.error(
+        `Unable to retrieve random items from Jellyfin: ${err}`,
+      );
       return [];
     }
   }
@@ -559,4 +637,3 @@ export class JellyfinSearchService {
     }
   }
 }
-

@@ -18,7 +18,10 @@ import {
 
 import { getItemsApi } from '@jellyfin/sdk/lib/utils/api/items-api';
 import { getArtistsApi } from '@jellyfin/sdk/lib/utils/api/artists-api';
-import { BaseItemKind, ItemFilter } from '@jellyfin/sdk/lib/generated-client/models';
+import {
+  BaseItemKind,
+  ItemFilter,
+} from '@jellyfin/sdk/lib/generated-client/models';
 import { JellyfinSearchService } from '../../clients/jellyfin/jellyfin.search.service';
 import { DiscordMessageService } from '../../clients/discord/discord.message.service';
 import { DiscordVoiceService } from '../../clients/discord/discord.voice.service';
@@ -72,16 +75,28 @@ export class BrowseMusicCommand {
 
   private buildMainMenuButtons() {
     return new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId('browse:artists:0').setLabel('🎤 Artists').setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId('browse:albums:0').setLabel('💿 Albums').setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId('browse:songs:0').setLabel('🎵 Songs').setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId('browse:artists:0')
+        .setLabel('🎤 Artists')
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId('browse:albums:0')
+        .setLabel('💿 Albums')
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId('browse:songs:0')
+        .setLabel('🎵 Songs')
+        .setStyle(ButtonStyle.Success),
     );
   }
 
   private buildNavRow(tab: Tab, page: number, total: number, limit: number) {
     const row = new ActionRowBuilder<ButtonBuilder>();
     row.addComponents(
-      new ButtonBuilder().setCustomId('browse:home').setLabel('🏠 Back to Menu').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId('browse:home')
+        .setLabel('🏠 Back to Menu')
+        .setStyle(ButtonStyle.Primary),
     );
 
     if (page > 0) {
@@ -134,12 +149,17 @@ export class BrowseMusicCommand {
           const tab = parts[1] as Tab;
           const page = parseInt(parts[2], 10) || 0;
 
-          if (tab === 'artists') return await this.showArtists(interaction, page);
+          if (tab === 'artists')
+            return await this.showArtists(interaction, page);
           if (tab === 'albums') return await this.showAlbums(interaction, page);
           if (tab === 'songs') return await this.showSongs(interaction, page);
         }
 
-        if (parts.length === 4 && parts[0] === 'artist' && parts[2] === 'tracks') {
+        if (
+          parts.length === 4 &&
+          parts[0] === 'artist' &&
+          parts[2] === 'tracks'
+        ) {
           const artistId = parts[1];
           const page = parseInt(parts[3], 10) || 0;
           return await this.showArtistTracks(interaction, artistId, page);
@@ -198,7 +218,9 @@ export class BrowseMusicCommand {
     const userId = this.jellyfinSearchService['jellyfinService'].getUserId();
     const { data } = await itemsApi.getItems({ userId, recursive: false });
     const lib = (data.Items || []).find(
-      (i) => i.CollectionType === 'music' || (i.Name && i.Name.toLowerCase().includes('music')),
+      (i) =>
+        i.CollectionType === 'music' ||
+        (i.Name && i.Name.toLowerCase().includes('music')),
     );
     if (!lib) this.logger.warn('⚠️ No music library found.');
     return lib?.Id;
@@ -210,11 +232,19 @@ export class BrowseMusicCommand {
   }
 
   private escapeMd(text: string) {
-    return text.replace(/([_*~`>])/g, '\\$1').replace(/\n/g, ' ').trim();
+    return text
+      .replace(/([_*~`>])/g, '\\$1')
+      .replace(/\n/g, ' ')
+      .trim();
   }
 
-  private buildNumberedDropdown(customId: string, items: { label: string; value: string }[]) {
-    const select = new StringSelectMenuBuilder().setCustomId(customId).setPlaceholder('Select to play…');
+  private buildNumberedDropdown(
+    customId: string,
+    items: { label: string; value: string }[],
+  ) {
+    const select = new StringSelectMenuBuilder()
+      .setCustomId(customId)
+      .setPlaceholder('Select to play…');
     let pageNum = 0;
     const parts = customId.split(':');
     const pagePart = parts[parts.length - 1];
@@ -231,29 +261,49 @@ export class BrowseMusicCommand {
       );
     });
 
-    return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select);
+    return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      select,
+    );
   }
 
   //#endregion
 
   //#region Artist → Tracks
 
-  private async showArtists(interaction: ButtonInteraction | StringSelectMenuInteraction, page = 0) {
+  private async showArtists(
+    interaction: ButtonInteraction | StringSelectMenuInteraction,
+    page = 0,
+  ) {
     const api = this.jellyfinSearchService['jellyfinService'].getApi();
     const artistsApi = getArtistsApi(api);
     const userId = this.jellyfinSearchService['jellyfinService'].getUserId();
     const parentId = await this.getMusicLibraryId();
     const limit = 20;
 
-    let { data } = await artistsApi.getArtists({ userId, parentId, startIndex: page * limit, limit });
+    let { data } = await artistsApi.getArtists({
+      userId,
+      parentId,
+      startIndex: page * limit,
+      limit,
+    });
     if (!data.Items?.length) {
-      const fb = await artistsApi.getAlbumArtists({ userId, parentId, startIndex: page * limit, limit });
+      const fb = await artistsApi.getAlbumArtists({
+        userId,
+        parentId,
+        startIndex: page * limit,
+        limit,
+      });
       data = fb.data;
     }
 
     const items = data.Items || [];
     const total = data.TotalRecordCount ?? items.length;
-    const list = items.map((a, idx) => `**${page * limit + idx + 1}.** 🎤 **${a.Name ?? 'Unknown Artist'}**`).join('\n');
+    const list = items
+      .map(
+        (a, idx) =>
+          `**${page * limit + idx + 1}.** 🎤 **${a.Name ?? 'Unknown Artist'}**`,
+      )
+      .join('\n');
 
     const embed = new EmbedBuilder()
       .setTitle(`🎤 Artists — Page ${page + 1}`)
@@ -265,11 +315,18 @@ export class BrowseMusicCommand {
       label: a.Name ?? 'Unknown Artist',
       value: `artists:${a.Id}`,
     }));
-    const selectRow = this.buildNumberedDropdown(`select:artists:${page}`, ddOptions);
+    const selectRow = this.buildNumberedDropdown(
+      `select:artists:${page}`,
+      ddOptions,
+    );
     await interaction.update({ embeds: [embed], components: [nav, selectRow] });
   }
 
-  private async showArtistTracks(interaction: ButtonInteraction | StringSelectMenuInteraction, artistId: string, page = 0) {
+  private async showArtistTracks(
+    interaction: ButtonInteraction | StringSelectMenuInteraction,
+    artistId: string,
+    page = 0,
+  ) {
     const api = this.jellyfinSearchService['jellyfinService'].getApi();
     const itemsApi = getItemsApi(api);
     const userId = this.jellyfinSearchService['jellyfinService'].getUserId();
@@ -293,7 +350,11 @@ export class BrowseMusicCommand {
     if (!pageTracks.length) {
       this.logger.warn(`⚠️ No tracks for artistId=${artistId}.`);
       await interaction.update({
-        embeds: [this.discordMessageService.buildMessage({ title: 'No tracks found for this artist.' })],
+        embeds: [
+          this.discordMessageService.buildMessage({
+            title: 'No tracks found for this artist.',
+          }),
+        ],
         components: [],
       });
       return;
@@ -304,9 +365,14 @@ export class BrowseMusicCommand {
     const firstAlbumArtist = allTracks[0]?.AlbumArtists?.[0];
 
     if (typeof firstArtist === 'string') artistNameRaw = firstArtist;
-    else if (firstArtist && typeof (firstArtist as any).Name === 'string') artistNameRaw = (firstArtist as any).Name;
-    else if (typeof firstAlbumArtist === 'string') artistNameRaw = firstAlbumArtist;
-    else if (firstAlbumArtist && typeof (firstAlbumArtist as any).Name === 'string')
+    else if (firstArtist && typeof (firstArtist as any).Name === 'string')
+      artistNameRaw = (firstArtist as any).Name;
+    else if (typeof firstAlbumArtist === 'string')
+      artistNameRaw = firstAlbumArtist;
+    else if (
+      firstAlbumArtist &&
+      typeof (firstAlbumArtist as any).Name === 'string'
+    )
       artistNameRaw = (firstAlbumArtist as any).Name;
     else artistNameRaw = 'Artist';
 
@@ -327,7 +393,10 @@ export class BrowseMusicCommand {
       .setDescription(list);
 
     const nav = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId('browse:artists:0').setLabel('🔙 Artists').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId('browse:artists:0')
+        .setLabel('🔙 Artists')
+        .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId(`artist:${artistId}:tracks:${Math.max(page - 1, 0)}`)
         .setLabel('⬅️ Prev')
@@ -344,7 +413,10 @@ export class BrowseMusicCommand {
       label: `${t.Name ?? 'Unknown Track'} — ${t.Album ?? ''}`,
       value: `artistTracks:${artistId}:${page}:track:${t.Id}`,
     }));
-    const selectRow = this.buildNumberedDropdown(`select:artistTracks:${artistId}:${page}`, ddOptions);
+    const selectRow = this.buildNumberedDropdown(
+      `select:artistTracks:${artistId}:${page}`,
+      ddOptions,
+    );
 
     await interaction.update({ embeds: [embed], components: [nav, selectRow] });
   }
@@ -353,7 +425,10 @@ export class BrowseMusicCommand {
 
   //#region Albums & Songs
 
-  private async showAlbums(interaction: ButtonInteraction | StringSelectMenuInteraction, page = 0) {
+  private async showAlbums(
+    interaction: ButtonInteraction | StringSelectMenuInteraction,
+    page = 0,
+  ) {
     const api = this.jellyfinSearchService['jellyfinService'].getApi();
     const itemsApi = getItemsApi(api);
     const userId = this.jellyfinSearchService['jellyfinService'].getUserId();
@@ -376,12 +451,16 @@ export class BrowseMusicCommand {
     const list = items
       .map((a, idx) => {
         const num = page * limit + idx + 1;
-        const name = this.escapeMd(this.truncate(a.Name ?? 'Unknown Album', 52));
+        const name = this.escapeMd(
+          this.truncate(a.Name ?? 'Unknown Album', 52),
+        );
         const artist = (a.AlbumArtists || a.Artists || [])
           .map((x: any) => (typeof x === 'string' ? x : x?.Name || ''))
           .filter(Boolean)
           .join(', ');
-        const artistTxt = artist ? ` — _${this.escapeMd(this.truncate(artist, 40))}_` : '';
+        const artistTxt = artist
+          ? ` — _${this.escapeMd(this.truncate(artist, 40))}_`
+          : '';
         return `**${num}.** 💿 **${name}**${artistTxt}`;
       })
       .join('\n');
@@ -396,12 +475,18 @@ export class BrowseMusicCommand {
       label: a.Name ?? 'Unknown Album',
       value: `albums:${page}:${a.Id}`,
     }));
-    const selectRow = this.buildNumberedDropdown(`select:albums:${page}`, ddOptions);
+    const selectRow = this.buildNumberedDropdown(
+      `select:albums:${page}`,
+      ddOptions,
+    );
 
     await interaction.update({ embeds: [embed], components: [nav, selectRow] });
   }
 
-  private async showSongs(interaction: ButtonInteraction | StringSelectMenuInteraction, page = 0) {
+  private async showSongs(
+    interaction: ButtonInteraction | StringSelectMenuInteraction,
+    page = 0,
+  ) {
     const api = this.jellyfinSearchService['jellyfinService'].getApi();
     const itemsApi = getItemsApi(api);
     const userId = this.jellyfinSearchService['jellyfinService'].getUserId();
@@ -429,7 +514,9 @@ export class BrowseMusicCommand {
           .map((x: any) => (typeof x === 'string' ? x : x?.Name || ''))
           .filter(Boolean)
           .join(', ');
-        const artistTxt = artist ? ` — _${this.escapeMd(this.truncate(artist, 40))}_` : '';
+        const artistTxt = artist
+          ? ` — _${this.escapeMd(this.truncate(artist, 40))}_`
+          : '';
         return `**${num}.** 🎵 **${name}**${artistTxt}`;
       })
       .join('\n');
@@ -444,7 +531,10 @@ export class BrowseMusicCommand {
       label: s.Name ?? 'Unknown Song',
       value: `songs:${page}:${s.Id}`,
     }));
-    const selectRow = this.buildNumberedDropdown(`select:songs:${page}`, ddOptions);
+    const selectRow = this.buildNumberedDropdown(
+      `select:songs:${page}`,
+      ddOptions,
+    );
 
     await interaction.update({ embeds: [embed], components: [nav, selectRow] });
   }
@@ -453,7 +543,11 @@ export class BrowseMusicCommand {
 
   //#region Playback Helper
 
-  private async playItem(interaction: StringSelectMenuInteraction, entity: string, itemId: string) {
+  private async playItem(
+    interaction: StringSelectMenuInteraction,
+    entity: string,
+    itemId: string,
+  ) {
     const api = this.jellyfinSearchService['jellyfinService'].getApi();
     const itemsApi = getItemsApi(api);
     const userId = this.jellyfinSearchService['jellyfinService'].getUserId();
@@ -462,15 +556,22 @@ export class BrowseMusicCommand {
     const item = data.Items?.[0];
 
     if (!item?.Id) {
-      await interaction.reply({ content: '⚠️ Item not found.', ephemeral: true });
+      await interaction.reply({
+        content: '⚠️ Item not found.',
+        ephemeral: true,
+      });
       return;
     }
 
     const itemIdStr = item.Id as string;
-    const searchType = entity === 'album' ? SearchType.AudioAlbum : SearchType.Audio;
+    const searchType =
+      entity === 'album' ? SearchType.AudioAlbum : SearchType.Audio;
     const guildMember = interaction.member as GuildMember;
 
-    const tryResult = this.discordVoiceService.tryJoinChannelAndEstablishVoiceConnection(guildMember);
+    const tryResult =
+      this.discordVoiceService.tryJoinChannelAndEstablishVoiceConnection(
+        guildMember,
+      );
     if (!tryResult.success) {
       await interaction.reply(tryResult.reply as InteractionReplyOptions);
       return;
@@ -482,11 +583,16 @@ export class BrowseMusicCommand {
     );
 
     if (!searchItem) {
-      await interaction.reply({ content: '⚠️ Could not resolve playable item.', ephemeral: true });
+      await interaction.reply({
+        content: '⚠️ Could not resolve playable item.',
+        ephemeral: true,
+      });
       return;
     }
 
-    const tracks = await (await searchItem.toTracks(this.jellyfinSearchService)).reverse();
+    const tracks = await (
+      await searchItem.toTracks(this.jellyfinSearchService)
+    ).reverse();
     this.playbackService.getPlaylistOrDefault().enqueueTracks(tracks, false);
 
     const remoteImage = tracks[0]?.getRemoteImages()?.[0];

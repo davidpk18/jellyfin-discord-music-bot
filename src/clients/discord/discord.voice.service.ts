@@ -52,7 +52,6 @@ export class DiscordVoiceService implements OnModuleDestroy {
     this.logger.debug('🔁 Persistent volume integration active.');
   }
 
-
   onModuleDestroy() {
     if (this.autoLeaveIntervalId) {
       try {
@@ -80,7 +79,9 @@ export class DiscordVoiceService implements OnModuleDestroy {
       const volume = this.playbackService.getVolume();
       if (resource.volume) {
         resource.volume.setVolume(volume);
-        this.logger.debug(`🎚️ Applied persistent volume: ${(volume * 100).toFixed(0)}%`);
+        this.logger.debug(
+          `🎚️ Applied persistent volume: ${(volume * 100).toFixed(0)}%`,
+        );
       } else {
         this.logger.warn('⚠️ Resource has no volume control available.');
       }
@@ -149,21 +150,29 @@ export class DiscordVoiceService implements OnModuleDestroy {
       if (!this.voiceConnection) {
         clearInterval(this.autoLeaveIntervalId!);
         this.autoLeaveIntervalId = null;
-        this.logger.debug('🧹 Auto-leave interval stopped (no active voice connection).');
+        this.logger.debug(
+          '🧹 Auto-leave interval stopped (no active voice connection).',
+        );
         return;
       }
 
       // Check if the channel still exists
-      const voiceChannel = (await member.guild.channels.fetch(voiceChannelId)) as VoiceChannel | undefined;
+      const voiceChannel = (await member.guild.channels.fetch(
+        voiceChannelId,
+      )) as VoiceChannel | undefined;
       if (!voiceChannel) {
         clearInterval(this.autoLeaveIntervalId!);
         this.autoLeaveIntervalId = null;
-        this.logger.debug('🧹 Auto-leave interval stopped (channel no longer exists).');
+        this.logger.debug(
+          '🧹 Auto-leave interval stopped (channel no longer exists).',
+        );
         return;
       }
 
       // Ignore if there are still non-bot members in the voice channel
-      const voiceChannelMembersExpectBots = voiceChannel.members.filter(m => !m.user.bot);
+      const voiceChannelMembersExpectBots = voiceChannel.members.filter(
+        (m) => !m.user.bot,
+      );
       if (voiceChannelMembersExpectBots.size > 0) return;
 
       try {
@@ -171,12 +180,13 @@ export class DiscordVoiceService implements OnModuleDestroy {
         this.disconnect();
         clearInterval(this.autoLeaveIntervalId!);
         this.autoLeaveIntervalId = null;
-        this.logger.debug(`👋 Disconnected from empty channel in guild "${member.guild.name}"`);
+        this.logger.debug(
+          `👋 Disconnected from empty channel in guild "${member.guild.name}"`,
+        );
       } catch (error: any) {
         this.logger.warn(`⚠️ Suppressed disconnect error: ${error.message}`);
       }
     }, 5000);
-
 
     return {
       success: true,
@@ -278,10 +288,14 @@ export class DiscordVoiceService implements OnModuleDestroy {
     return true;
   }
 
-  disconnect(): TryResult<string | MessagePayload | InteractionEditReplyOptions> {
+  disconnect(): TryResult<
+    string | MessagePayload | InteractionEditReplyOptions
+  > {
     // 🧩 1️⃣ Early exit if already disconnected
     if (!this.voiceConnection) {
-      this.logger.debug('🔇 No active voice connection to disconnect — skipping.');
+      this.logger.debug(
+        '🔇 No active voice connection to disconnect — skipping.',
+      );
       return {
         success: false,
         reply: {},
@@ -396,7 +410,9 @@ export class DiscordVoiceService implements OnModuleDestroy {
     });
     this.audioPlayer.on('stateChange', (previousState) => {
       if (!this.audioPlayer) {
-        this.logger.debug('StateChange fired after player cleanup — safe to ignore.');
+        this.logger.debug(
+          'StateChange fired after player cleanup — safe to ignore.',
+        );
         return;
       }
 

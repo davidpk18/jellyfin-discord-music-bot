@@ -96,9 +96,7 @@ export class PlayItemCommand {
       return;
     }
 
-    const tracks = await (
-      await item.toTracks(this.jellyfinSearchService)
-    ).reverse();
+    const tracks = await await item.toTracks(this.jellyfinSearchService);
     this.logger.debug(`Extracted ${tracks.length} tracks from the search item`);
     const reducedDuration = tracks.reduce(
       (sum, item) => sum + item.duration,
@@ -133,81 +131,83 @@ export class PlayItemCommand {
     });
   }
 
-@On(Events.InteractionCreate)
-async onAutocomplete(interaction: Interaction) {
-  if (!interaction.isAutocomplete()) return;
+  @On(Events.InteractionCreate)
+  async onAutocomplete(interaction: Interaction) {
+    if (!interaction.isAutocomplete()) return;
 
-  const focused = interaction.options.getFocused(true);
-  const typeIndex = interaction.options.getInteger('type');
-  const type =
-    typeIndex !== null ? Object.values(SearchType)[typeIndex] : undefined;
-  const searchQuery = (focused.value ?? '').trim();
+    const focused = interaction.options.getFocused(true);
+    const typeIndex = interaction.options.getInteger('type');
+    const type =
+      typeIndex !== null ? Object.values(SearchType)[typeIndex] : undefined;
+    const searchQuery = (focused.value ?? '').trim();
 
-  this.logger.debug(
-    `Running autocomplete for query '${searchQuery || '[empty]'}' (type: ${type})`,
-  );
+    this.logger.debug(
+      `Running autocomplete for query '${searchQuery || '[empty]'}' (type: ${type})`,
+    );
 
-  const baseKinds = PlayCommandParams.getBaseItemKinds(type as SearchType);
+    const baseKinds = PlayCommandParams.getBaseItemKinds(type as SearchType);
 
-  // Always call Jellyfin, even if query is empty
-  const results = await this.jellyfinSearchService.searchItem(
-    searchQuery,
-    25,
-    baseKinds,
-  );
+    // Always call Jellyfin, even if query is empty
+    const results = await this.jellyfinSearchService.searchItem(
+      searchQuery,
+      25,
+      baseKinds,
+    );
 
-  if (!results || results.length === 0) {
-    await interaction.respond([{ name: 'No results found', value: 'none' }]);
-    return;
-  }
+    if (!results || results.length === 0) {
+      await interaction.respond([{ name: 'No results found', value: 'none' }]);
+      return;
+    }
 
-  // ✅ Batch enrich items
-  const { getItemsApi } = await import('@jellyfin/sdk/lib/utils/api/items-api');
-  const jellyfinCore = (this.jellyfinSearchService as any).jellyfinService;
-  const api = jellyfinCore.getApi();
-  const itemsApi = getItemsApi(api);
+    // ✅ Batch enrich items
+    const { getItemsApi } = await import(
+      '@jellyfin/sdk/lib/utils/api/items-api'
+    );
+    const jellyfinCore = (this.jellyfinSearchService as any).jellyfinService;
+    const api = jellyfinCore.getApi();
+    const itemsApi = getItemsApi(api);
 
-  // collect IDs
-  const ids = results.slice(0, 25).map((r) => r.getId());
-  const enrichedResults: any[] = [];
+    // collect IDs
+    const ids = results.slice(0, 25).map((r) => r.getId());
+    const enrichedResults: any[] = [];
 
-  try {
-    const { data } = await itemsApi.getItems({
-      ids,
-      userId: jellyfinCore.getUserId(),
+    try {
+      const { data } = await itemsApi.getItems({
+        ids,
+        userId: jellyfinCore.getUserId(),
+      });
+
+      for (const fullItem of data.Items || []) {
+        enrichedResults.push({
+          id: fullItem.Id,
+          name: fullItem.Name || 'Unknown',
+          type: fullItem.Type || 'Unknown',
+          artists:
+            fullItem.Artists?.map((a: any) => a.Name || a) ||
+            fullItem.AlbumArtists?.map((a: any) => a.Name || a) ||
+            [],
+        });
+      }
+    } catch (err) {
+      this.logger.error(`Failed to enrich Jellyfin results: ${err}`);
+    }
+
+    // ✅ Build Discord autocomplete options
+    const response = enrichedResults.map((item) => {
+      let emoji = '🎵';
+      if (item.type === 'MusicAlbum') emoji = '💿';
+      else if (item.type === 'Playlist') emoji = '📜';
+
+      const artistText = item.artists.length
+        ? ` (${item.artists.join(', ')})`
+        : '';
+
+      return {
+        name: `${emoji} ${item.name}${artistText}`.slice(0, 100),
+        value: `native-${item.id}`,
+      };
     });
 
-    for (const fullItem of data.Items || []) {
-      enrichedResults.push({
-        id: fullItem.Id,
-        name: fullItem.Name || 'Unknown',
-        type: fullItem.Type || 'Unknown',
-        artists:
-          fullItem.Artists?.map((a: any) => a.Name || a) ||
-          fullItem.AlbumArtists?.map((a: any) => a.Name || a) ||
-          [],
-      });
-    }
-  } catch (err) {
-    this.logger.error(`Failed to enrich Jellyfin results: ${err}`);
-  }
-
-  // ✅ Build Discord autocomplete options
-  const response = enrichedResults.map((item) => {
-    let emoji = '🎵';
-    if (item.type === 'MusicAlbum') emoji = '💿';
-    else if (item.type === 'Playlist') emoji = '📜';
-
-    const artistText = item.artists.length
-      ? ` (${item.artists.join(', ')})`
-      : '';
-
-    return {
-      name: `${emoji} ${item.name}${artistText}`.slice(0, 100),
-      value: `native-${item.id}`,
-    };
-  });
-
-  await interaction.respond(response);
+    await interaction.respond(response);
   }
 }
