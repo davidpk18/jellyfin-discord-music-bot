@@ -24,7 +24,7 @@ export class VolumeCommand {
     private readonly discordVoiceService: DiscordVoiceService,
     private readonly discordMessageService: DiscordMessageService,
     private readonly playbackService: PlaybackService,
-  ) { }
+  ) {}
 
   @Handler()
   async handler(
@@ -49,7 +49,9 @@ export class VolumeCommand {
 
     const volume = dto.volume / 100;
 
-    this.logger.debug(`Calculated volume ${volume} from dto param ${dto.volume}`);
+    this.logger.debug(
+      `Calculated volume ${volume} from dto param ${dto.volume}`,
+    );
 
     // 🔊 Change active audio resource volume
     this.discordVoiceService.changeVolume(volume);

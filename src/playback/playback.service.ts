@@ -12,7 +12,11 @@ export class PlaybackService {
 
   // ---- Persistent Volume System ----
   private currentVolume = 1.0;
-  private readonly volumeFilePath = path.join(process.cwd(), 'config', 'volume.json');
+  private readonly volumeFilePath = path.join(
+    process.cwd(),
+    'config',
+    'volume.json',
+  );
   private playlist: Playlist | undefined;
 
   constructor(private readonly eventEmitter: EventEmitter2) {
@@ -32,7 +36,11 @@ export class PlaybackService {
       }
 
       if (!fs.existsSync(this.volumeFilePath)) {
-        fs.writeFileSync(this.volumeFilePath, JSON.stringify({ volume: 1.0 }, null, 2), 'utf8');
+        fs.writeFileSync(
+          this.volumeFilePath,
+          JSON.stringify({ volume: 1.0 }, null, 2),
+          'utf8',
+        );
         this.logger.debug('🆕 Created default volume.json with 100% volume.');
       }
     } catch (err) {
@@ -49,9 +57,13 @@ export class PlaybackService {
       const parsed = JSON.parse(data);
       if (typeof parsed.volume === 'number' && parsed.volume >= 0) {
         this.currentVolume = parsed.volume;
-        this.logger.debug(`🎚️ Loaded saved volume: ${(this.currentVolume * 100).toFixed(0)}%`);
+        this.logger.debug(
+          `🎚️ Loaded saved volume: ${(this.currentVolume * 100).toFixed(0)}%`,
+        );
       } else {
-        this.logger.warn('⚠️ Invalid data in volume.json, resetting to default.');
+        this.logger.warn(
+          '⚠️ Invalid data in volume.json, resetting to default.',
+        );
         this.saveVolume(1.0);
       }
     } catch (err) {
@@ -67,7 +79,11 @@ export class PlaybackService {
     try {
       const dir = path.dirname(this.volumeFilePath);
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(this.volumeFilePath, JSON.stringify({ volume }, null, 2), 'utf8');
+      fs.writeFileSync(
+        this.volumeFilePath,
+        JSON.stringify({ volume }, null, 2),
+        'utf8',
+      );
       this.logger.debug('✅ Volume saved to volume.json');
     } catch (err) {
       this.logger.error(`❌ Failed to save volume to disk: ${err}`);
@@ -79,7 +95,9 @@ export class PlaybackService {
    */
   public setVolume(volume: number) {
     this.currentVolume = volume;
-    this.logger.debug(`🔊 Persistent volume set to ${(volume * 100).toFixed(0)}%`);
+    this.logger.debug(
+      `🔊 Persistent volume set to ${(volume * 100).toFixed(0)}%`,
+    );
     this.saveVolume(volume);
   }
 
