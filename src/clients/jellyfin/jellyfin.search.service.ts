@@ -9,314 +9,280 @@ import { getPlaylistsApi } from '@jellyfin/sdk/lib/utils/api/playlists-api';
 import { getRemoteImageApi } from '@jellyfin/sdk/lib/utils/api/remote-image-api';
 import { getSearchApi } from '@jellyfin/sdk/lib/utils/api/search-api';
 import { Injectable, Logger } from '@nestjs/common';
-
 import { AlbumSearchItem } from '../../models/search/AlbumSearchItem';
 import { PlaylistSearchItem } from '../../models/search/PlaylistSearchItem';
 import { SearchItem } from '../../models/search/SearchItem';
 import { JellyfinService } from './jellyfin.service';
 import { sortByDiscAndTrack } from '../../utils/sortByDiscAndTrack';
 
-// ✅ Fuse import that works in both ESM and CommonJS (Docker-safe)
-import * as FuseModule from 'fuse.js';
-const Fuse = (FuseModule as any).default || (FuseModule as any);
+// ✅ Fuse import (Docker-safe)
+//import * as FuseModule from 'fuse.js';
+//const Fuse = (FuseModule as any).default || (FuseModule as any);
 
 @Injectable()
 export class JellyfinSearchService {
   private albumCache: Map<string, any[]> = new Map();
   private readonly logger = new Logger(JellyfinSearchService.name);
 
+  private readonly defaultFields: any[] = [
+    'Artists',
+    'AlbumArtists',
+    'Album',
+    'ParentId',
+    'AlbumId',
+    'IndexNumber',
+    'ProductionYear',
+    'MediaSources',
+  ];
+
   constructor(private readonly jellyfinService: JellyfinService) {}
 
+  // ────────────────────────────────────────────────
+  // 🔍 Core Search
+  // ────────────────────────────────────────────────
   async searchItem(
     searchTerm: string,
     limit = 25,
-    includeItemTypes: BaseItemKind[] = [
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _includeItemTypes: BaseItemKind[] = [
       BaseItemKind.Audio,
       BaseItemKind.MusicAlbum,
+      BaseItemKind.MusicArtist,
       BaseItemKind.Playlist,
     ],
   ): Promise<SearchItem[]> {
     const api = this.jellyfinService.getApi();
+    const searchApi = getSearchApi(api);
     const itemsApi = getItemsApi(api);
     const userId = this.jellyfinService.getUserId();
-    const DEBUG_FUSE = true;
+
+    if (!searchTerm?.trim()) return [];
+
+    const term = searchTerm.trim();
+    this.logger.log(`🔍 Native Jellyfin search for "${term}"`);
 
     try {
-      // 🟢 Fallback sample if no searchTerm
-      if (!searchTerm?.trim()) {
-        const { data } = await itemsApi.getItems({
-          includeItemTypes,
-          userId,
-          recursive: true,
-          limit,
-          sortBy: ['SortName'],
-        });
-        return (data.Items || []).map((i) =>
+      // 1️⃣ Query /Search/Hints — just like the web UI
+      const { data: hints } = await searchApi.get({
+        userId,
+        searchTerm: term,
+        includeItemTypes: [
+          'Audio',
+          'MusicAlbum',
+          'MusicArtist',
+          'Playlist',
+        ] as any,
+        limit,
+      });
+
+      const hintItems: SearchItem[] = [];
+      if (hints?.SearchHints?.length) {
+        for (const hint of hints.SearchHints) {
+          const item = this.transformToSearchHintFromHint(hint);
+          if (item) hintItems.push(item);
+        }
+        this.logger.log(
+          `💡 /Search/Hints returned ${hintItems.length} results for "${term}"`,
+        );
+      }
+
+      // 2️⃣ Expand artist results (fetch their albums + tracks)
+      const artistHints =
+        hints?.SearchHints?.filter((h) => h.Type === 'MusicArtist') || [];
+
+      for (const artist of artistHints) {
+        this.logger.log(`🎤 Expanding artist "${artist.Name}"`);
+        const [albumsRes, tracksRes] = await Promise.all([
+          itemsApi.getItems({
+            userId,
+            includeItemTypes: ['MusicAlbum'] as any,
+            recursive: true,
+            limit: 100,
+            sortBy: ['SortName'],
+            albumArtistIds: [artist.Id ?? ''], // ✅ Correct way to link artist to albums
+          }),
+          itemsApi.getItems({
+            userId,
+            includeItemTypes: ['Audio'] as any,
+            recursive: true,
+            limit: 300,
+            sortBy: ['IndexNumber'],
+            artistIds: [artist.Id ?? ''], // ✅ Correct way to link artist to tracks
+          }),
+        ]);
+
+        const albums = (albumsRes.data?.Items ?? []).map((i) =>
           SearchItem.constructFromBaseItem(i),
         );
-      }
-
-      const term = searchTerm.trim().toLowerCase();
-      const terms = term.split(/\s+/);
-
-      // 🎯 Primary Jellyfin fetch
-      const { data: directData } = await itemsApi.getItems({
-        includeItemTypes,
-        userId,
-        recursive: true,
-        searchTerm: term,
-        limit: 400,
-        sortBy: ['SortName'],
-      });
-
-      let results = directData.Items || [];
-
-      // 🧠 Fallback: try individual terms
-      if (results.length === 0 && terms.length > 1) {
-        const termResults: any[] = [];
-        for (const single of terms) {
-          const { data } = await itemsApi.getItems({
-            includeItemTypes,
-            userId,
-            recursive: true,
-            searchTerm: single,
-            limit: 200,
-          });
-          termResults.push(...(data.Items || []));
-        }
-        results = Array.from(
-          new Map(termResults.map((i) => [i.Id, i])).values(),
+        const tracks = (tracksRes.data?.Items ?? []).map((i) =>
+          SearchItem.constructFromBaseItem(i),
         );
+
         this.logger.log(
-          `Multi-term fallback activated — combined results: ${results.length}`,
+          `📀 ${artist.Name}: ${albums.length} albums, ${tracks.length} tracks`,
         );
+        hintItems.push(...albums, ...tracks);
       }
 
-      // 🧩 Debug: count and log item types
-      if (DEBUG_FUSE) {
-        const typeCounts: Record<string, number> = {};
-        for (const i of results) {
-          const typeKey = i?.Type || 'Unknown';
-          typeCounts[typeKey] = (typeCounts[typeKey] || 0) + 1;
-        }
-        this.logger.log(
-          `Fetched from Jellyfin: ${typeCounts['MusicAlbum'] || 0} albums, ${
-            typeCounts['Audio'] || 0
-          } tracks`,
-        );
-      }
-
-      // 🔎 Manual multi-term partial match
-      const filtered = results.filter((item) => {
-        const fields = [
-          item.Name,
-          item.Album,
-          ...(item.Artists || []).map((a: any) =>
-            typeof a === 'string' ? a : (a?.Name ?? ''),
-          ),
-          ...(item.AlbumArtists || []).map((a: any) =>
-            typeof a === 'string' ? a : (a?.Name ?? ''),
-          ),
-        ]
-          .filter(Boolean)
-          .map((x) => x.toLowerCase());
-
-        return terms.every((t) => fields.some((f) => f.includes(t)));
-      });
-
-      // 🧮 Prepare Fuse.js data
-      const fuseData = (filtered.length ? filtered : results).map((i) => ({
-        ...i,
-        name: i.Name || '',
-        album: i.Album || '',
-        artists: (i.Artists || []).map((a: any) => a?.Name || a).join(' '),
-        albumArtists: (i.AlbumArtists || [])
-          .map((a: any) => a?.Name || a)
-          .join(' '),
-      }));
-
-      // 🧩 Add combined “album + artist” field
-      for (const item of fuseData) {
-        const albumName = (item.album || '').toLowerCase();
-        const artistNames =
-          `${item.artists} ${item.albumArtists}`.toLowerCase();
-        (item as any).albumFullName = `${artistNames} ${albumName}`.trim();
-      }
-
-      // 🎛️ Fuse passes
-      const fuse = new Fuse(fuseData, {
-        keys: [
-          { name: 'albumFullName', weight: 0.1 },
-          { name: 'album', weight: 0.15 },
-          { name: 'name', weight: 0.25 },
-          { name: 'artists', weight: 0.5 },
-        ],
-        threshold: 1,
-        distance: 750,
-        ignoreLocation: true,
-        includeScore: true,
-      });
-
-      const fuseAlbums = new Fuse(fuseData, {
-        keys: [
-          { name: 'albumFullName', weight: 0.15 },
-          { name: 'album', weight: 0.3 },
-          { name: 'artists', weight: 0.3 },
-          { name: 'name', weight: 0.25 },
-        ],
-        threshold: 1,
-        distance: 600,
-        ignoreLocation: true,
-        includeScore: true,
-      });
-
-      const generalResults = fuse.search(term);
-      const albumResults = fuseAlbums.search(term);
-      const fuzzyResults =
-        terms.length >= 2
-          ? [...albumResults, ...generalResults]
-          : [...generalResults, ...albumResults];
-
-      // 🧩 Merge and rank albums above tracks
-      let ranked = Array.from(
-        new Map(
-          fuzzyResults
-            .sort((a, b) => (a.score ?? 0) - (b.score ?? 0))
-            .map((r) => [r.item.Id, r.item]),
-        ).values(),
-      );
-
-      let albumAtTop = ranked.find((r) => r.Type === 'MusicAlbum');
-      if (albumAtTop) {
-        ranked = [albumAtTop, ...ranked.filter((r) => r.Id !== albumAtTop.Id)];
-      }
-
-      if (!albumAtTop) {
-        const { data: albumSearch } = await itemsApi.getItems({
-          includeItemTypes: [BaseItemKind.MusicAlbum],
+      // 3️⃣ Fallback: direct /Items search (if nothing found)
+      if (hintItems.length === 0) {
+        const { data: itemsData } = await itemsApi.getItems({
           userId,
-          recursive: true,
           searchTerm: term,
-          limit: 3,
+          includeItemTypes: ['Audio', 'MusicAlbum', 'MusicArtist'] as any,
+          recursive: true,
+          limit: 300,
           sortBy: ['SortName'],
         });
-        if (albumSearch?.Items?.length) {
-          albumAtTop = albumSearch.Items[0];
-          ranked.unshift(albumAtTop);
+
+        if (itemsData?.Items?.length) {
           this.logger.log(
-            `✅ Injected album "${albumAtTop.Name}" from direct Jellyfin query`,
+            `📦 /Items fallback returned ${itemsData.Items.length} items`,
+          );
+          hintItems.push(
+            ...itemsData.Items.map((i) => SearchItem.constructFromBaseItem(i)),
           );
         }
       }
 
-      if (albumAtTop) {
-        try {
-          let albumTracks = this.albumCache.get(albumAtTop.Id) || [];
-          if (albumTracks.length === 0) {
-            const { data: albumChildren } = await itemsApi.getItems({
-              parentId: albumAtTop.Id,
-              includeItemTypes: [BaseItemKind.Audio],
-              userId,
-              recursive: true,
-              limit: 300,
-              sortBy: ['IndexNumber'],
-            });
-            albumTracks = albumChildren.Items || [];
-            this.albumCache.set(albumAtTop.Id, albumTracks);
-            this.logger.log(
-              `Fetched ${albumTracks.length} tracks from album "${albumAtTop.Name}"`,
-            );
-          }
-
-          const normalize = (s: string) =>
-            s
-              ?.toLowerCase()
-              ?.replace(/[^\w\s]|_/g, '')
-              ?.trim() || '';
-          const albumNameNorm = normalize(albumAtTop.Name || '');
-          const albumArtistsNorm = (
-            (albumAtTop.AlbumArtists || [])
-              .map((a: any) => (a?.Name || a || '').toLowerCase())
-              .join(' ') || ''
-          ).trim();
-
-          const fuseIds = new Set(fuseData.map((f) => f.Id));
-          for (const t of albumTracks) {
-            if (t && !fuseIds.has(t.Id)) {
-              fuseData.push({
-                ...t,
-                name: t.Name || '',
-                album: t.Album || '',
-                artists: (t.Artists || [])
-                  .map((a: any) => a?.Name || a)
-                  .join(' '),
-                albumArtists: (t.AlbumArtists || [])
-                  .map((a: any) => a?.Name || a)
-                  .join(' '),
-              });
-            }
-          }
-
-          const relatedTracks = fuseData
-            .filter((r) => {
-              if (r.Type !== 'Audio' || !r.Album) return false;
-              const trackAlbum = normalize(r.Album);
-              const trackArtists = (r.artists || '').toLowerCase();
-              const albumMatch =
-                trackAlbum.includes(albumNameNorm) ||
-                albumNameNorm.includes(trackAlbum);
-              const artistOverlap =
-                albumArtistsNorm &&
-                (albumArtistsNorm
-                  .split(/\s+/)
-                  .some((a) => trackArtists.includes(a)) ||
-                  trackArtists
-                    .split(/\s+/)
-                    .some((a) => albumArtistsNorm.includes(a)));
-              return albumMatch || artistOverlap;
-            })
-            .sort(sortByDiscAndTrack);
-
-          const uniqueRelated = Array.from(
-            new Map(relatedTracks.map((t) => [t.Id, t])).values(),
-          );
-
-          if (uniqueRelated.length > 0) {
-            this.logger.log(
-              `📀 Assembled ${uniqueRelated.length} tracks for "${albumAtTop.Name}"`,
-            );
-            const albumIndex = ranked.findIndex((r) => r.Id === albumAtTop.Id);
-            ranked.splice(albumIndex + 1, 0, ...uniqueRelated);
-          }
-        } catch (e) {
-          this.logger.warn(
-            `Failed to fetch tracks for album ${albumAtTop?.Name}: ${e}`,
-          );
-        }
-      }
-
-      const seenIds = new Set<string>();
-      const finalRanked = ranked.filter((i) => {
-        if (!i?.Id) return false;
-        if (seenIds.has(i.Id)) return false;
-        seenIds.add(i.Id);
+      // 4️⃣ Remove duplicates safely
+      const seen = new Set<string>();
+      const unique = hintItems.filter((i: any) => {
+        const id = i?.id ?? i?.Id ?? i?.getId?.();
+        if (!id) return false;
+        if (seen.has(id)) return false;
+        seen.add(id);
         return true;
       });
 
-      const finalResults = finalRanked
-        .map((i) => SearchItem.constructFromBaseItem(i))
-        .filter(Boolean)
-        .slice(0, limit);
-
-      return finalResults;
+      if (unique.length > 0) {
+        this.logger.log(
+          `✅ Returning ${unique.length} unique results for "${term}"`,
+        );
+        return unique.slice(0, limit);
+      }
     } catch (err) {
       this.logger.error(`Deep search failed: ${err}`);
-      return [];
     }
+
+    // 🟡 Artist + Album Fallback — catches "<artist> <album>" phrases
+    try {
+      const normalized = (searchTerm || '').trim().toLowerCase();
+      const parts = normalized.split(/\s+/).filter(Boolean);
+
+      this.logger.log(
+        `🧩 [Fallback] Checking artist+album for "${normalized}" (parts=${parts.length})`,
+      );
+
+      if (parts.length >= 2) {
+        const api = this.jellyfinService.getApi();
+        const userId = this.jellyfinService.getUserId();
+        const itemsApi = getItemsApi(api);
+
+        // Step 1: multi-token search loop
+        let candidateAlbums: any[] = [];
+        for (const token of parts) {
+          const { data: partial } = await itemsApi.getItems({
+            userId,
+            includeItemTypes: [BaseItemKind.MusicAlbum],
+            recursive: true,
+            searchTerm: token,
+            limit: 100,
+            sortBy: ['SortName'],
+          });
+          candidateAlbums.push(...(partial?.Items ?? []));
+        }
+
+        // Deduplicate by ID
+        const seen = new Set<string>();
+        candidateAlbums = candidateAlbums.filter((a) => {
+          if (!a.Id || seen.has(a.Id)) return false;
+          seen.add(a.Id);
+          return true;
+        });
+
+        this.logger.log(
+          `🧩 [Fallback] Album candidates found across tokens: ${candidateAlbums.length}`,
+        );
+
+        if (candidateAlbums.length) {
+          // Step 2: pick best-scoring album
+          const scoreAlbum = (alb: any) => {
+            const aa = (alb?.AlbumArtists ?? [])
+              .map((a: any) => (typeof a === 'string' ? a : (a?.Name ?? '')))
+              .join(' ')
+              .toLowerCase();
+            const name = (alb?.Name ?? '').toLowerCase();
+            const combined = `${aa} ${name}`;
+            let s = 0;
+            for (const p of parts) if (combined.includes(p)) s++;
+            return s;
+          };
+
+          const best = [...candidateAlbums].sort(
+            (a, b) => scoreAlbum(b) - scoreAlbum(a),
+          )[0];
+          this.logger.log(
+            `🧩 [Fallback] Best album match: ${best?.Name ?? 'none'} (score=${scoreAlbum(best)})`,
+          );
+
+          if (best?.Id) {
+            // Step 3: fetch all tracks
+            const { data: children } = await itemsApi.getItems({
+              userId,
+              parentId: best.Id,
+              includeItemTypes: [BaseItemKind.Audio],
+              recursive: true,
+              limit: 500,
+              sortBy: ['IndexNumber'],
+            });
+
+            const trackItems = (children?.Items ?? [])
+              .slice()
+              .sort(sortByDiscAndTrack as any);
+            this.logger.log(
+              `🧩 [Fallback] Tracks fetched for "${best?.Name}": ${trackItems.length}`,
+            );
+
+            const albumFirst: SearchItem[] = [
+              this.transformToSearchHintFromBaseItemDto(best) as SearchItem,
+              ...trackItems.map((it) => SearchItem.constructFromBaseItem(it)),
+            ].filter(Boolean);
+
+            if (albumFirst.length > 1) {
+              this.logger.log(
+                `🎯 [Fallback] Artist+Album HIT: ${best?.Name} (+${trackItems.length} tracks)`,
+              );
+              return albumFirst.slice(0, limit);
+            } else {
+              this.logger.warn(
+                `⚠️ [Fallback] Album found but no tracks returned.`,
+              );
+            }
+          }
+        } else {
+          this.logger.warn(
+            `⚠️ [Fallback] No albums matched any tokens of "${normalized}"`,
+          );
+        }
+      } else {
+        this.logger.verbose(
+          `🧩 [Fallback] Query too short (${parts.length} parts)`,
+        );
+      }
+    } catch (e) {
+      this.logger.warn(`💥 [Fallback] Artist+Album error: ${e}`);
+    }
+    // 🧩 If all searches and fallbacks failed
+    this.logger.warn(
+      `❌ No results for "${searchTerm}" after all fallback attempts.`,
+    );
+    return [];
   }
 
-  // === Rest of service unchanged ===
-
+  // ────────────────────────────────────────────────
+  // Playlist / Album / Item helpers
+  // ────────────────────────────────────────────────
   async getPlaylistItems(id: string): Promise<SearchItem[]> {
     const api = this.jellyfinService.getApi();
     const playlistApi = getPlaylistsApi(api);
@@ -345,11 +311,13 @@ export class JellyfinSearchService {
         includeItemTypes: [BaseItemKind.Audio],
         sortBy: ['IndexNumber'],
         recursive: true,
+        fields: this.defaultFields,
       });
 
       let items = itemResponse.data?.Items ?? [];
       if (itemResponse.status !== 200) items = [];
 
+      // ⚠️ Fallback 1: use /Search if album returned no direct children
       if (!items || items.length === 0) {
         const searchResponse = await searchApi.get({
           parentId: albumId,
@@ -366,16 +334,63 @@ export class JellyfinSearchService {
           this.logger.log(
             `✅ Fallback via searchApi succeeded (${hints.length} items).`,
           );
-
           return hints
             .sort(sortByDiscAndTrack)
             .map((hint: any) => SearchItem.constructFromHint(hint));
         }
 
         this.logger.warn(`⚠️ Fallback via searchApi also returned no items.`);
+
+        // 🧠 Fallback 2: Manual artist+album combined term match
+        // This recovers results for "<artist> <album>" combos
+        try {
+          const { data: manual } = await itemsApi.getItems({
+            userId,
+            recursive: true,
+            includeItemTypes: [BaseItemKind.MusicAlbum, BaseItemKind.Audio],
+            limit: 500,
+            sortBy: ['SortName'],
+          });
+
+          const allItems = manual?.Items ?? [];
+          const albumData = allItems.filter((item) => {
+            if (!item.Album && !item.Artists?.length) return false;
+
+            const fields = [
+              item.Name,
+              item.Album,
+              ...(item.Artists || []).map((a: any) =>
+                typeof a === 'string' ? a : a?.Name || '',
+              ),
+              ...(item.AlbumArtists || []).map((a: any) =>
+                typeof a === 'string' ? a : a?.Name || '',
+              ),
+            ]
+              .filter(Boolean)
+              .map((x) => x.toLowerCase());
+
+            const terms = (albumId || '').toLowerCase().split(/\s+/);
+            return terms.every((t) => fields.some((f) => f.includes(t)));
+          });
+
+          if (albumData.length > 0) {
+            this.logger.log(
+              `✅ Manual "<artist> <album>" term match recovered ${albumData.length} results.`,
+            );
+            return albumData
+              .sort(sortByDiscAndTrack)
+              .map((item) => SearchItem.constructFromBaseItem(item));
+          }
+        } catch (manualErr) {
+          this.logger.error(
+            `💥 Manual term match fallback failed: ${manualErr}`,
+          );
+        }
+
         return [];
       }
 
+      // ✅ If album children exist normally
       items.sort(sortByDiscAndTrack);
       return items.map((item) => SearchItem.constructFromBaseItem(item));
     } catch (err) {
@@ -395,6 +410,7 @@ export class JellyfinSearchService {
       ids: [id],
       userId: this.jellyfinService.getUserId(),
       includeItemTypes,
+      fields: this.defaultFields,
     });
 
     if (!data.Items || data.Items.length !== 1) return undefined;
@@ -412,6 +428,7 @@ export class JellyfinSearchService {
       ids,
       userId: this.jellyfinService.getUserId(),
       includeItemTypes,
+      fields: this.defaultFields,
     });
 
     if (!data.Items || data.Items.length === 0) return [];
@@ -430,7 +447,6 @@ export class JellyfinSearchService {
         includeAllLanguages: true,
         limit,
       });
-
       if (axiosResponse.status !== 200)
         return { Images: [], Providers: [], TotalRecordCount: 0 };
       return axiosResponse.data;
@@ -451,6 +467,7 @@ export class JellyfinSearchService {
         sortBy: ['Random'],
         userId: this.jellyfinService.getUserId(),
         recursive: true,
+        fields: this.defaultFields,
       });
 
       if (!response.data.Items) return [];
@@ -465,6 +482,9 @@ export class JellyfinSearchService {
     }
   }
 
+  // ────────────────────────────────────────────────
+  // Converters
+  // ────────────────────────────────────────────────
   private transformToSearchHintFromHint(jellyfinHint: JellyfinSearchHint) {
     switch (jellyfinHint.Type) {
       case BaseItemKind[BaseItemKind.Audio]:
