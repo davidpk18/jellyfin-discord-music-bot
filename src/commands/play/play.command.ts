@@ -28,7 +28,8 @@ import { PlaybackService } from '../../playback/playback.service';
 import { formatMillisecondsAsHumanReadable } from '../../utils/timeUtils';
 
 import { defaultMemberPermissions } from '../../utils/environment';
-import { PlayCommandParams, SearchType } from './play.params';
+import { PlayCommandParams } from './play.params';
+import { BaseItemKind } from '@jellyfin/sdk/lib/generated-client/models';
 
 @Injectable()
 @Command({
@@ -53,7 +54,11 @@ export class PlayItemCommand {
   ) {
     await interaction.deferReply({ ephemeral: true });
 
-    const baseItems = PlayCommandParams.getBaseItemKinds(dto.type);
+    const baseItems: BaseItemKind[] = [
+      BaseItemKind.Audio,
+      BaseItemKind.MusicAlbum,
+      BaseItemKind.Playlist,
+    ];
 
     let item: SearchItem | undefined;
     if (dto.name.startsWith('native-')) {
@@ -136,16 +141,20 @@ export class PlayItemCommand {
     if (!interaction.isAutocomplete()) return;
 
     const focused = interaction.options.getFocused(true);
-    const typeIndex = interaction.options.getInteger('type');
-    const type =
-      typeIndex !== null ? Object.values(SearchType)[typeIndex] : undefined;
+    // Type selection removed (was SearchType). We now always query all media types.
+
     const searchQuery = (focused.value ?? '').trim();
 
     this.logger.debug(
-      `Running autocomplete for query '${searchQuery || '[empty]'}' (type: ${type})`,
+      `Running autocomplete for query '${searchQuery || '[empty]'}`,
     );
 
-    const baseKinds = PlayCommandParams.getBaseItemKinds(type as SearchType);
+    // Define what item types to include (we no longer use SearchType)
+    const baseKinds: BaseItemKind[] = [
+      BaseItemKind.Audio,
+      BaseItemKind.MusicAlbum,
+      BaseItemKind.Playlist,
+    ];
 
     // Always call Jellyfin, even if query is empty
     const results = await this.jellyfinSearchService.searchItem(
