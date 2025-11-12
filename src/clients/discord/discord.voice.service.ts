@@ -20,7 +20,6 @@ import { Interval } from '@nestjs/schedule';
 import {
   GuildMember,
   InteractionEditReplyOptions,
-  InteractionReplyOptions,
   MessagePayload,
   VoiceChannel,
 } from 'discord.js';
@@ -146,7 +145,6 @@ export class DiscordVoiceService implements OnModuleDestroy {
 
     const voiceChannelId = channel.id;
     this.autoLeaveIntervalId = setInterval(async () => {
-      // 🧩 Early exit if disconnected
       if (!this.voiceConnection) {
         clearInterval(this.autoLeaveIntervalId!);
         this.autoLeaveIntervalId = null;
@@ -156,7 +154,6 @@ export class DiscordVoiceService implements OnModuleDestroy {
         return;
       }
 
-      // Check if the channel still exists
       const voiceChannel = (await member.guild.channels.fetch(
         voiceChannelId,
       )) as VoiceChannel | undefined;
@@ -169,7 +166,6 @@ export class DiscordVoiceService implements OnModuleDestroy {
         return;
       }
 
-      // Ignore if there are still non-bot members in the voice channel
       const voiceChannelMembersExpectBots = voiceChannel.members.filter(
         (m) => !m.user.bot,
       );
@@ -220,9 +216,6 @@ export class DiscordVoiceService implements OnModuleDestroy {
     );
   }
 
-  /**
-   * Pauses the current audio player
-   */
   @OnEvent('internal.voice.controls.pause')
   pause() {
     this.createAndReturnOrGetAudioPlayer().pause();
@@ -233,9 +226,6 @@ export class DiscordVoiceService implements OnModuleDestroy {
     this.eventEmitter.emit('playback.state.pause', true);
   }
 
-  /**
-   * Stops the audio player
-   */
   @OnEvent('internal.voice.controls.stop')
   stop(force: boolean): boolean {
     const hasStopped = this.createAndReturnOrGetAudioPlayer().stop(force);
@@ -250,9 +240,6 @@ export class DiscordVoiceService implements OnModuleDestroy {
     return hasStopped;
   }
 
-  /**
-   * Unpauses the current audio player
-   */
   unpause() {
     this.createAndReturnOrGetAudioPlayer().unpause();
     const track = this.playbackService.getPlaylistOrDefault().getActiveTrack();
@@ -262,10 +249,6 @@ export class DiscordVoiceService implements OnModuleDestroy {
     this.eventEmitter.emit('playback.state.pause', false);
   }
 
-  /**
-   * Check if the current state is paused
-   * @returns The current pause state as a boolean
-   */
   isPaused() {
     return (
       this.createAndReturnOrGetAudioPlayer().state.status ===
@@ -273,10 +256,6 @@ export class DiscordVoiceService implements OnModuleDestroy {
     );
   }
 
-  /**
-   * Checks if the current state is paused or not and toggles the states to the opposite.
-   * @returns The new paused state - true: paused, false: un-paused
-   */
   @OnEvent('internal.voice.controls.togglePause')
   togglePaused(): boolean {
     if (this.isPaused()) {
@@ -302,7 +281,6 @@ export class DiscordVoiceService implements OnModuleDestroy {
       };
     }
 
-    // 🧩 2️⃣ Clear any lingering auto-leave interval
     if (this.autoLeaveIntervalId) {
       clearInterval(this.autoLeaveIntervalId);
       this.autoLeaveIntervalId = null;
@@ -310,16 +288,12 @@ export class DiscordVoiceService implements OnModuleDestroy {
     }
 
     try {
-      // 🧩 3️⃣ Gracefully disconnect
       this.voiceConnection.disconnect();
       this.logger.debug(`👋 Disconnected from voice channel in guild.`);
 
-      // 🧩 4️⃣ Clean up references
       this.audioPlayer = undefined;
       this.voiceConnection = undefined;
       this.audioResource = undefined;
-
-      // 🧩 5️⃣ Reset playlist
       this.playbackService.getPlaylistOrDefault().clear();
 
       return {

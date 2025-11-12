@@ -22,7 +22,7 @@ export class DiscordConfigService implements DiscordOptionsFactory {
       registerCommandOptions: [
         {
           forGuild: process.env.GUILD_ID,
-          removeCommandsBefore: false,
+          removeCommandsBefore: true,
         },
       ],
     };

@@ -32,8 +32,6 @@ export class VolumeCommand {
     @IA() interaction: CommandInteraction,
   ): Promise<void> {
     await interaction.deferReply();
-
-    // Ensure there’s an active track before changing volume
     if (!this.playbackService.getPlaylistOrDefault().hasActiveTrack()) {
       await interaction.editReply({
         embeds: [
@@ -46,28 +44,19 @@ export class VolumeCommand {
       });
       return;
     }
-
     const volume = dto.volume / 100;
-
     this.logger.debug(
       `Calculated volume ${volume} from dto param ${dto.volume}`,
     );
-
-    // 🔊 Change active audio resource volume
     this.discordVoiceService.changeVolume(volume);
-
-    // 💾 Persist the change globally
     this.playbackService.setVolume(volume);
-
-    // Wait for the change to propagate before confirming
     await sleepAsync(1500);
-
     await interaction.editReply({
       embeds: [
         this.discordMessageService.buildMessage({
           title: `Successfully set volume to ${dto.volume.toFixed(0)}%`,
           description:
-            'Persistent volume updated.\nThis setting will stay across songs and restarts.\nPlease note that listening at a high volume for a long time may damage your hearing.',
+            'Volume updated.\nPlease note that listening at a high volume for a long time may damage your hearing.',
         }),
       ],
     });

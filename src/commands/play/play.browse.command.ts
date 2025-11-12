@@ -15,18 +15,17 @@ import {
   InteractionReplyOptions,
   GuildMember,
 } from 'discord.js';
-
 import { getItemsApi } from '@jellyfin/sdk/lib/utils/api/items-api';
 import { getArtistsApi } from '@jellyfin/sdk/lib/utils/api/artists-api';
 import {
   BaseItemKind,
   ItemFilter,
 } from '@jellyfin/sdk/lib/generated-client/models';
+
 import { JellyfinSearchService } from '../../clients/jellyfin/jellyfin.search.service';
 import { DiscordMessageService } from '../../clients/discord/discord.message.service';
 import { DiscordVoiceService } from '../../clients/discord/discord.voice.service';
 import { PlaybackService } from '../../playback/playback.service';
-import { PlayCommandParams, SearchType } from './play.params';
 
 type Tab = 'artists' | 'albums' | 'songs';
 
@@ -37,15 +36,25 @@ type Tab = 'artists' | 'albums' | 'songs';
 })
 export class BrowseMusicCommand {
   private readonly logger = new Logger(BrowseMusicCommand.name);
+  private artistPageCache = new Map<string, number>();
+  private albumPageCache = new Map<string, number>();
+  private songPageCache = new Map<string, number>();
 
   constructor(
     private readonly jellyfinSearchService: JellyfinSearchService,
     private readonly discordMessageService: DiscordMessageService,
     private readonly discordVoiceService: DiscordVoiceService,
     private readonly playbackService: PlaybackService,
-  ) {}
-
-  //#region Entry + Home
+  ) {
+    setInterval(
+      () => {
+        this.artistPageCache.clear();
+        this.albumPageCache.clear();
+        this.songPageCache.clear();
+      },
+      30 * 60 * 1000,
+    );
+  }
 
   @Handler()
   async handle(interaction: CommandInteraction) {
@@ -116,26 +125,16 @@ export class BrowseMusicCommand {
           .setStyle(ButtonStyle.Secondary),
       );
     }
-
     return row;
   }
-
-  //#endregion
-
-  //#region Unified Interaction Router
 
   @On(Events.InteractionCreate)
   async onInteraction(interaction: Interaction) {
     if (!interaction.isButton() && !interaction.isStringSelectMenu()) return;
-
     try {
-      //
-      // 🎛️ BUTTONS
-      //
       if (interaction.isButton()) {
         const id = interaction.customId;
 
-        // Home
         if (id === 'browse:home') {
           await interaction.update({
             embeds: [this.buildHomeEmbed()],
@@ -148,7 +147,6 @@ export class BrowseMusicCommand {
         if (parts.length === 3 && parts[0] === 'browse') {
           const tab = parts[1] as Tab;
           const page = parseInt(parts[2], 10) || 0;
-
           if (tab === 'artists')
             return await this.showArtists(interaction, page);
           if (tab === 'albums') return await this.showAlbums(interaction, page);
@@ -166,9 +164,6 @@ export class BrowseMusicCommand {
         }
       }
 
-      //
-      // 🎚️ SELECT MENUS
-      //
       if (interaction.isStringSelectMenu()) {
         const [kind, scope] = interaction.customId.split(':');
         if (kind !== 'select') return;
@@ -208,10 +203,6 @@ export class BrowseMusicCommand {
     }
   }
 
-  //#endregion
-
-  //#region Helper Builders
-
   private async getMusicLibraryId(): Promise<string | undefined> {
     const api = this.jellyfinSearchService['jellyfinService'].getApi();
     const itemsApi = getItemsApi(api);
@@ -249,7 +240,6 @@ export class BrowseMusicCommand {
     const parts = customId.split(':');
     const pagePart = parts[parts.length - 1];
     if (!isNaN(parseInt(pagePart, 10))) pageNum = parseInt(pagePart, 10);
-
     const startAbsIndex = pageNum * 20;
 
     items.slice(0, 25).forEach((opt, i) => {
@@ -265,10 +255,6 @@ export class BrowseMusicCommand {
       select,
     );
   }
-
-  //#endregion
-
-  //#region Artist → Tracks
 
   private async showArtists(
     interaction: ButtonInteraction | StringSelectMenuInteraction,
@@ -310,6 +296,8 @@ export class BrowseMusicCommand {
       .setColor('#00cc88')
       .setDescription(items.length ? list : 'No artists found.');
 
+    this.artistPageCache.set(interaction.user.id, page);
+
     const nav = this.buildNavRow('artists', page, total, limit);
     const ddOptions = items.map((a) => ({
       label: a.Name ?? 'Unknown Artist',
@@ -330,7 +318,6 @@ export class BrowseMusicCommand {
     const api = this.jellyfinSearchService['jellyfinService'].getApi();
     const itemsApi = getItemsApi(api);
     const userId = this.jellyfinSearchService['jellyfinService'].getUserId();
-
     const { data } = await itemsApi.getItems({
       includeItemTypes: [BaseItemKind.Audio],
       userId,
@@ -345,10 +332,7 @@ export class BrowseMusicCommand {
     const start = page * limit;
     const pageTracks = allTracks.slice(start, start + limit);
     const total = allTracks.length;
-    const startAbs = start;
-
     if (!pageTracks.length) {
-      this.logger.warn(`⚠️ No tracks for artistId=${artistId}.`);
       await interaction.update({
         embeds: [
           this.discordMessageService.buildMessage({
@@ -360,31 +344,25 @@ export class BrowseMusicCommand {
       return;
     }
 
-    let artistNameRaw: string | undefined;
-    const firstArtist = allTracks[0]?.Artists?.[0];
-    const firstAlbumArtist = allTracks[0]?.AlbumArtists?.[0];
-
-    if (typeof firstArtist === 'string') artistNameRaw = firstArtist;
-    else if (firstArtist && typeof (firstArtist as any).Name === 'string')
-      artistNameRaw = (firstArtist as any).Name;
-    else if (typeof firstAlbumArtist === 'string')
-      artistNameRaw = firstAlbumArtist;
-    else if (
-      firstAlbumArtist &&
-      typeof (firstAlbumArtist as any).Name === 'string'
-    )
-      artistNameRaw = (firstAlbumArtist as any).Name;
-    else artistNameRaw = 'Artist';
-
-    const artistName = this.truncate(artistNameRaw, 64);
+    const artistName =
+      this.truncate(
+        (typeof allTracks[0]?.Artists?.[0] === 'string'
+          ? allTracks[0]?.Artists?.[0]
+          : (allTracks[0]?.Artists?.[0] as any)?.Name ||
+            (typeof allTracks[0]?.AlbumArtists?.[0] === 'string'
+              ? allTracks[0]?.AlbumArtists?.[0]
+              : (allTracks[0]?.AlbumArtists?.[0] as any)?.Name) ||
+            'Artist') as string,
+        64,
+      ) ?? 'Artist';
 
     const list = pageTracks
-      .map((t, idx) => {
-        const num = startAbs + idx + 1;
-        const title = this.truncate(t.Name ?? 'Unknown Track', 52);
-        const album = this.truncate(t.Album ?? '', 38);
-        return `**${num}.** 🎵 **${title}**${album ? ` — _${album}_` : ''}`;
-      })
+      .map(
+        (t, idx) =>
+          `**${start + idx + 1}.** 🎵 **${this.truncate(t.Name ?? 'Unknown Track', 52)}**${
+            t.Album ? ` — _${this.truncate(t.Album, 38)}_` : ''
+          }`,
+      )
       .join('\n');
 
     const embed = new EmbedBuilder()
@@ -392,9 +370,11 @@ export class BrowseMusicCommand {
       .setColor('#aa66ff')
       .setDescription(list);
 
+    const cachedPage = this.artistPageCache.get(interaction.user.id) ?? 0;
+
     const nav = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
-        .setCustomId('browse:artists:0')
+        .setCustomId(`browse:artists:${cachedPage}`)
         .setLabel('🔙 Artists')
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
@@ -409,6 +389,9 @@ export class BrowseMusicCommand {
         .setDisabled((page + 1) * limit >= total),
     );
 
+    const key = `${interaction.user.id}:${artistId}`;
+    this.artistPageCache.set(key, page);
+
     const ddOptions = pageTracks.map((t) => ({
       label: `${t.Name ?? 'Unknown Track'} — ${t.Album ?? ''}`,
       value: `artistTracks:${artistId}:${page}:track:${t.Id}`,
@@ -420,10 +403,6 @@ export class BrowseMusicCommand {
 
     await interaction.update({ embeds: [embed], components: [nav, selectRow] });
   }
-
-  //#endregion
-
-  //#region Albums & Songs
 
   private async showAlbums(
     interaction: ButtonInteraction | StringSelectMenuInteraction,
@@ -447,6 +426,7 @@ export class BrowseMusicCommand {
 
     const items = data.Items || [];
     const total = data.TotalRecordCount ?? items.length;
+    this.albumPageCache.set(interaction.user.id, page);
 
     const list = items
       .map((a, idx) => {
@@ -479,7 +459,6 @@ export class BrowseMusicCommand {
       `select:albums:${page}`,
       ddOptions,
     );
-
     await interaction.update({ embeds: [embed], components: [nav, selectRow] });
   }
 
@@ -505,6 +484,7 @@ export class BrowseMusicCommand {
 
     const items = data.Items || [];
     const total = data.TotalRecordCount ?? items.length;
+    this.songPageCache.set(interaction.user.id, page);
 
     const list = items
       .map((s, idx) => {
@@ -535,13 +515,8 @@ export class BrowseMusicCommand {
       `select:songs:${page}`,
       ddOptions,
     );
-
     await interaction.update({ embeds: [embed], components: [nav, selectRow] });
   }
-
-  //#endregion
-
-  //#region Playback Helper
 
   private async playItem(
     interaction: StringSelectMenuInteraction,
@@ -551,10 +526,8 @@ export class BrowseMusicCommand {
     const api = this.jellyfinSearchService['jellyfinService'].getApi();
     const itemsApi = getItemsApi(api);
     const userId = this.jellyfinSearchService['jellyfinService'].getUserId();
-
     const { data } = await itemsApi.getItems({ ids: [itemId], userId });
     const item = data.Items?.[0];
-
     if (!item?.Id) {
       await interaction.reply({
         content: '⚠️ Item not found.',
@@ -564,10 +537,7 @@ export class BrowseMusicCommand {
     }
 
     const itemIdStr = item.Id as string;
-    const searchType =
-      entity === 'album' ? SearchType.AudioAlbum : SearchType.Audio;
     const guildMember = interaction.member as GuildMember;
-
     const tryResult =
       this.discordVoiceService.tryJoinChannelAndEstablishVoiceConnection(
         guildMember,
@@ -577,11 +547,11 @@ export class BrowseMusicCommand {
       return;
     }
 
-    const searchItem = await this.jellyfinSearchService.getById(
-      itemIdStr,
-      PlayCommandParams.getBaseItemKinds(searchType),
-    );
-
+    const searchItem = await this.jellyfinSearchService.getById(itemIdStr, [
+      BaseItemKind.Audio,
+      BaseItemKind.MusicAlbum,
+      BaseItemKind.Playlist,
+    ]);
     if (!searchItem) {
       await interaction.reply({
         content: '⚠️ Could not resolve playable item.',
@@ -590,7 +560,7 @@ export class BrowseMusicCommand {
       return;
     }
 
-    const tracks = await await searchItem.toTracks(this.jellyfinSearchService);
+    const tracks = await searchItem.toTracks(this.jellyfinSearchService);
     this.playbackService.getPlaylistOrDefault().enqueueTracks(tracks, false);
 
     const remoteImage = tracks[0]?.getRemoteImages()?.[0];
@@ -608,6 +578,4 @@ export class BrowseMusicCommand {
       ephemeral: true,
     });
   }
-
-  //#endregion
 }
