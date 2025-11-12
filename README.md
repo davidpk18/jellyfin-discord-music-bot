@@ -35,14 +35,10 @@
 | Feature | Description |
 |----------|-------------|
 | 🔍 **Search System** | Native Jellyfin search + 'Artist Album' fallback |
-| 💽 **Album Handling** | Plays albums in order with tracklisting |
-| 🧠 **Multi-Word Queries** | Multi-term fallback intelligently splits phrases and merges results |
-| ⚡ **Caching** | In-memory album cache for instant repeated lookups |
-| 🧾 **Logging** | Detailed debug output with Fuse scores and ranked previews |
+| 💽 **Album Handling** | Plays albums in order with tracklisting + multi disc support |
 | 🐳 **Docker Support** | Verified on Ubuntu 24.04 for both Docker and Compose setups |
 | 🎶 **New Command** | `/browse` — a jukebox-style Discord UI for navigating Jellyfin music |
 | 🧩 **Environment Variables** | Requires `GUILD_ID=` for faster guild command registration |
-| ⚠️ **Kubernetes Method** | “Method 3 (K8S)” currently **untested** |
 
 ---
 
