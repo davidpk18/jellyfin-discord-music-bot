@@ -9,15 +9,12 @@ import { getPlaylistsApi } from '@jellyfin/sdk/lib/utils/api/playlists-api';
 import { getRemoteImageApi } from '@jellyfin/sdk/lib/utils/api/remote-image-api';
 import { getSearchApi } from '@jellyfin/sdk/lib/utils/api/search-api';
 import { Injectable, Logger } from '@nestjs/common';
+
 import { AlbumSearchItem } from '../../models/search/AlbumSearchItem';
 import { PlaylistSearchItem } from '../../models/search/PlaylistSearchItem';
 import { SearchItem } from '../../models/search/SearchItem';
 import { JellyfinService } from './jellyfin.service';
 import { sortByDiscAndTrack } from '../../utils/sortByDiscAndTrack';
-
-// ✅ Fuse import (Docker-safe)
-//import * as FuseModule from 'fuse.js';
-//const Fuse = (FuseModule as any).default || (FuseModule as any);
 
 @Injectable()
 export class JellyfinSearchService {
@@ -36,14 +33,9 @@ export class JellyfinSearchService {
   ];
 
   constructor(private readonly jellyfinService: JellyfinService) {}
-
-  // ────────────────────────────────────────────────
-  // 🔍 Core Search
-  // ────────────────────────────────────────────────
   async searchItem(
     searchTerm: string,
     limit = 25,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     _includeItemTypes: BaseItemKind[] = [
       BaseItemKind.Audio,
       BaseItemKind.MusicAlbum,
@@ -62,7 +54,6 @@ export class JellyfinSearchService {
     this.logger.log(`🔍 Native Jellyfin search for "${term}"`);
 
     try {
-      // 1️⃣ Query /Search/Hints — just like the web UI
       const { data: hints } = await searchApi.get({
         userId,
         searchTerm: term,
@@ -86,7 +77,6 @@ export class JellyfinSearchService {
         );
       }
 
-      // 2️⃣ Expand artist results (fetch their albums + tracks)
       const artistHints =
         hints?.SearchHints?.filter((h) => h.Type === 'MusicArtist') || [];
 
@@ -99,7 +89,7 @@ export class JellyfinSearchService {
             recursive: true,
             limit: 100,
             sortBy: ['SortName'],
-            albumArtistIds: [artist.Id ?? ''], // ✅ Correct way to link artist to albums
+            albumArtistIds: [artist.Id ?? ''],
           }),
           itemsApi.getItems({
             userId,
@@ -107,7 +97,7 @@ export class JellyfinSearchService {
             recursive: true,
             limit: 300,
             sortBy: ['IndexNumber'],
-            artistIds: [artist.Id ?? ''], // ✅ Correct way to link artist to tracks
+            artistIds: [artist.Id ?? ''],
           }),
         ]);
 
@@ -124,7 +114,6 @@ export class JellyfinSearchService {
         hintItems.push(...albums, ...tracks);
       }
 
-      // 3️⃣ Fallback: direct /Items search (if nothing found)
       if (hintItems.length === 0) {
         const { data: itemsData } = await itemsApi.getItems({
           userId,
@@ -145,7 +134,6 @@ export class JellyfinSearchService {
         }
       }
 
-      // 4️⃣ Remove duplicates safely
       const seen = new Set<string>();
       const unique = hintItems.filter((i: any) => {
         const id = i?.id ?? i?.Id ?? i?.getId?.();
@@ -165,7 +153,6 @@ export class JellyfinSearchService {
       this.logger.error(`Deep search failed: ${err}`);
     }
 
-    // 🟡 Artist + Album Fallback — catches "<artist> <album>" phrases
     try {
       const normalized = (searchTerm || '').trim().toLowerCase();
       const parts = normalized.split(/\s+/).filter(Boolean);
@@ -179,7 +166,6 @@ export class JellyfinSearchService {
         const userId = this.jellyfinService.getUserId();
         const itemsApi = getItemsApi(api);
 
-        // Step 1: multi-token search loop
         let candidateAlbums: any[] = [];
         for (const token of parts) {
           const { data: partial } = await itemsApi.getItems({
@@ -193,7 +179,6 @@ export class JellyfinSearchService {
           candidateAlbums.push(...(partial?.Items ?? []));
         }
 
-        // Deduplicate by ID
         const seen = new Set<string>();
         candidateAlbums = candidateAlbums.filter((a) => {
           if (!a.Id || seen.has(a.Id)) return false;
@@ -206,7 +191,6 @@ export class JellyfinSearchService {
         );
 
         if (candidateAlbums.length) {
-          // Step 2: pick best-scoring album
           const scoreAlbum = (alb: any) => {
             const aa = (alb?.AlbumArtists ?? [])
               .map((a: any) => (typeof a === 'string' ? a : (a?.Name ?? '')))
@@ -227,7 +211,6 @@ export class JellyfinSearchService {
           );
 
           if (best?.Id) {
-            // Step 3: fetch all tracks
             const { data: children } = await itemsApi.getItems({
               userId,
               parentId: best.Id,
@@ -273,16 +256,12 @@ export class JellyfinSearchService {
     } catch (e) {
       this.logger.warn(`💥 [Fallback] Artist+Album error: ${e}`);
     }
-    // 🧩 If all searches and fallbacks failed
     this.logger.warn(
       `❌ No results for "${searchTerm}" after all fallback attempts.`,
     );
     return [];
   }
 
-  // ────────────────────────────────────────────────
-  // Playlist / Album / Item helpers
-  // ────────────────────────────────────────────────
   async getPlaylistItems(id: string): Promise<SearchItem[]> {
     const api = this.jellyfinService.getApi();
     const playlistApi = getPlaylistsApi(api);
@@ -317,7 +296,6 @@ export class JellyfinSearchService {
       let items = itemResponse.data?.Items ?? [];
       if (itemResponse.status !== 200) items = [];
 
-      // ⚠️ Fallback 1: use /Search if album returned no direct children
       if (!items || items.length === 0) {
         const searchResponse = await searchApi.get({
           parentId: albumId,
@@ -341,8 +319,6 @@ export class JellyfinSearchService {
 
         this.logger.warn(`⚠️ Fallback via searchApi also returned no items.`);
 
-        // 🧠 Fallback 2: Manual artist+album combined term match
-        // This recovers results for "<artist> <album>" combos
         try {
           const { data: manual } = await itemsApi.getItems({
             userId,
@@ -390,7 +366,6 @@ export class JellyfinSearchService {
         return [];
       }
 
-      // ✅ If album children exist normally
       items.sort(sortByDiscAndTrack);
       return items.map((item) => SearchItem.constructFromBaseItem(item));
     } catch (err) {
@@ -482,9 +457,6 @@ export class JellyfinSearchService {
     }
   }
 
-  // ────────────────────────────────────────────────
-  // Converters
-  // ────────────────────────────────────────────────
   private transformToSearchHintFromHint(jellyfinHint: JellyfinSearchHint) {
     switch (jellyfinHint.Type) {
       case BaseItemKind[BaseItemKind.Audio]:

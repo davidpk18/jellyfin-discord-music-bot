@@ -6,12 +6,10 @@ import {
   InteractionEvent,
   On,
 } from '@discord-nestjs/core';
-
 import { RemoteImageInfo } from '@jellyfin/sdk/lib/generated-client/models';
-
+import { BaseItemKind } from '@jellyfin/sdk/lib/generated-client/models';
 import { Injectable } from '@nestjs/common';
 import { Logger } from '@nestjs/common/services';
-
 import {
   CommandInteraction,
   Events,
@@ -29,7 +27,6 @@ import { formatMillisecondsAsHumanReadable } from '../../utils/timeUtils';
 
 import { defaultMemberPermissions } from '../../utils/environment';
 import { PlayCommandParams } from './play.params';
-import { BaseItemKind } from '@jellyfin/sdk/lib/generated-client/models';
 
 @Injectable()
 @Command({
@@ -141,7 +138,6 @@ export class PlayItemCommand {
     if (!interaction.isAutocomplete()) return;
 
     const focused = interaction.options.getFocused(true);
-    // Type selection removed (was SearchType). We now always query all media types.
 
     const searchQuery = (focused.value ?? '').trim();
 
@@ -149,14 +145,11 @@ export class PlayItemCommand {
       `Running autocomplete for query '${searchQuery || '[empty]'}`,
     );
 
-    // Define what item types to include (we no longer use SearchType)
     const baseKinds: BaseItemKind[] = [
       BaseItemKind.Audio,
       BaseItemKind.MusicAlbum,
       BaseItemKind.Playlist,
     ];
-
-    // Always call Jellyfin, even if query is empty
     const results = await this.jellyfinSearchService.searchItem(
       searchQuery,
       25,
@@ -167,16 +160,12 @@ export class PlayItemCommand {
       await interaction.respond([{ name: 'No results found', value: 'none' }]);
       return;
     }
-
-    // ✅ Batch enrich items
     const { getItemsApi } = await import(
       '@jellyfin/sdk/lib/utils/api/items-api'
     );
     const jellyfinCore = (this.jellyfinSearchService as any).jellyfinService;
     const api = jellyfinCore.getApi();
     const itemsApi = getItemsApi(api);
-
-    // collect IDs
     const ids = results.slice(0, 25).map((r) => r.getId());
     const enrichedResults: any[] = [];
 
@@ -200,8 +189,6 @@ export class PlayItemCommand {
     } catch (err) {
       this.logger.error(`Failed to enrich Jellyfin results: ${err}`);
     }
-
-    // ✅ Build Discord autocomplete options
     const response = enrichedResults.map((item) => {
       let emoji = '🎵';
       if (item.type === 'MusicAlbum') emoji = '💿';

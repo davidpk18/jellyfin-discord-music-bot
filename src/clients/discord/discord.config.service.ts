@@ -21,11 +21,7 @@ export class DiscordConfigService implements DiscordOptionsFactory {
       },
       registerCommandOptions: [
         {
-          // ⚙️ Registers for your guild only
           forGuild: process.env.GUILD_ID,
-
-          // 🧹 Automatically remove all existing guild commands
-          // before registering new ones each startup
           removeCommandsBefore: true,
         },
       ],

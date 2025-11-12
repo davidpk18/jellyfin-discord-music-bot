@@ -1,11 +1,8 @@
 import { DiscordModule } from '@discord-nestjs/core';
 import { Module } from '@nestjs/common';
-
 import { DiscordClientModule } from '../clients/discord/discord.module';
 import { JellyfinClientModule } from '../clients/jellyfin/jellyfin.module';
 import { PlaybackModule } from '../playback/playback.module';
-
-// Commands
 import { PlaylistCommand } from './playlist/playlist.command';
 import { DisconnectCommand } from './disconnect.command';
 import { HelpCommand } from './help.command';
@@ -31,7 +28,6 @@ import { BotStatusCommand } from './bot_status/bot_status.command';
     PlaybackModule,
   ],
   providers: [
-    // Commands
     PlaylistInteractionCollector,
     HelpCommand,
     StatusCommand,

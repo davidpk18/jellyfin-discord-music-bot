@@ -15,13 +15,13 @@ import {
   InteractionReplyOptions,
   GuildMember,
 } from 'discord.js';
-
 import { getItemsApi } from '@jellyfin/sdk/lib/utils/api/items-api';
 import { getArtistsApi } from '@jellyfin/sdk/lib/utils/api/artists-api';
 import {
   BaseItemKind,
   ItemFilter,
 } from '@jellyfin/sdk/lib/generated-client/models';
+
 import { JellyfinSearchService } from '../../clients/jellyfin/jellyfin.search.service';
 import { DiscordMessageService } from '../../clients/discord/discord.message.service';
 import { DiscordVoiceService } from '../../clients/discord/discord.voice.service';
@@ -36,8 +36,6 @@ type Tab = 'artists' | 'albums' | 'songs';
 })
 export class BrowseMusicCommand {
   private readonly logger = new Logger(BrowseMusicCommand.name);
-
-  // 🧠 Per-user memory caches
   private artistPageCache = new Map<string, number>();
   private albumPageCache = new Map<string, number>();
   private songPageCache = new Map<string, number>();
@@ -48,7 +46,6 @@ export class BrowseMusicCommand {
     private readonly discordVoiceService: DiscordVoiceService,
     private readonly playbackService: PlaybackService,
   ) {
-    // 🧹 auto-clear every 30 min
     setInterval(
       () => {
         this.artistPageCache.clear();
@@ -59,7 +56,6 @@ export class BrowseMusicCommand {
     );
   }
 
-  //#region Entry + Home
   @Handler()
   async handle(interaction: CommandInteraction) {
     await interaction.reply({
@@ -131,14 +127,11 @@ export class BrowseMusicCommand {
     }
     return row;
   }
-  //#endregion
 
-  //#region Unified Interaction Router
   @On(Events.InteractionCreate)
   async onInteraction(interaction: Interaction) {
     if (!interaction.isButton() && !interaction.isStringSelectMenu()) return;
     try {
-      // BUTTONS
       if (interaction.isButton()) {
         const id = interaction.customId;
 
@@ -171,7 +164,6 @@ export class BrowseMusicCommand {
         }
       }
 
-      // SELECT MENUS
       if (interaction.isStringSelectMenu()) {
         const [kind, scope] = interaction.customId.split(':');
         if (kind !== 'select') return;
@@ -210,9 +202,7 @@ export class BrowseMusicCommand {
       }
     }
   }
-  //#endregion
 
-  //#region Helpers
   private async getMusicLibraryId(): Promise<string | undefined> {
     const api = this.jellyfinSearchService['jellyfinService'].getApi();
     const itemsApi = getItemsApi(api);
@@ -265,9 +255,7 @@ export class BrowseMusicCommand {
       select,
     );
   }
-  //#endregion
 
-  //#region Artists
   private async showArtists(
     interaction: ButtonInteraction | StringSelectMenuInteraction,
     page = 0,
@@ -308,7 +296,6 @@ export class BrowseMusicCommand {
       .setColor('#00cc88')
       .setDescription(items.length ? list : 'No artists found.');
 
-    // remember user page
     this.artistPageCache.set(interaction.user.id, page);
 
     const nav = this.buildNavRow('artists', page, total, limit);
@@ -402,7 +389,6 @@ export class BrowseMusicCommand {
         .setDisabled((page + 1) * limit >= total),
     );
 
-    // remember per-user artist page
     const key = `${interaction.user.id}:${artistId}`;
     this.artistPageCache.set(key, page);
 
@@ -417,9 +403,7 @@ export class BrowseMusicCommand {
 
     await interaction.update({ embeds: [embed], components: [nav, selectRow] });
   }
-  //#endregion
 
-  //#region Albums & Songs
   private async showAlbums(
     interaction: ButtonInteraction | StringSelectMenuInteraction,
     page = 0,
@@ -533,9 +517,7 @@ export class BrowseMusicCommand {
     );
     await interaction.update({ embeds: [embed], components: [nav, selectRow] });
   }
-  //#endregion
 
-  //#region Playback
   private async playItem(
     interaction: StringSelectMenuInteraction,
     entity: string,
@@ -596,5 +578,4 @@ export class BrowseMusicCommand {
       ephemeral: true,
     });
   }
-  //#endregion
 }
