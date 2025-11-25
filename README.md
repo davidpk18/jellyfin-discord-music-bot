@@ -49,8 +49,8 @@
     <img src="https://github.com/davidpk18/jellyfin-discord-music-bot/blob/main/images/slashbrowse.gif" 
          alt="/browse command demo" width="48%" style="border-radius:10px; margin-right: 1%;" />
   </a>
-  <a href="https://github.com/davidpk18/jellyfin-discord-music-bot/blob/dev/images/slashplay.gif">
-    <img src="https://github.com/davidpk18/jellyfin-discord-music-bot/blob/dev/images/slashplay.gif" 
+  <a href="https://github.com/davidpk18/jellyfin-discord-music-bot/blob/main/images/slashplay.gif">
+    <img src="https://github.com/davidpk18/jellyfin-discord-music-bot/blob/main/images/slashplay.gif" 
          alt="/play command demo" width="48%" style="border-radius:10px; margin-left: 1%;" />
   </a>
 </p>
