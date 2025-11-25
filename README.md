@@ -45,8 +45,8 @@
 ## 🎬 Feature Showcase
 
 <p align="center">
-  <a href="https://github.com/davidpk18/jellyfin-discord-music-bot/blob/dev/images/slashbrowse.gif">
-    <img src="https://github.com/davidpk18/jellyfin-discord-music-bot/blob/dev/images/slashbrowse.gif" 
+  <a href="https://github.com/davidpk18/jellyfin-discord-music-bot/blob/main/images/slashbrowse.gif">
+    <img src="https://github.com/davidpk18/jellyfin-discord-music-bot/blob/main/images/slashbrowse.gif" 
          alt="/browse command demo" width="48%" style="border-radius:10px; margin-right: 1%;" />
   </a>
   <a href="https://github.com/davidpk18/jellyfin-discord-music-bot/blob/dev/images/slashplay.gif">
