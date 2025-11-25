@@ -7,7 +7,7 @@
 <h1 align="center">Jellyfin Discord Music Bot — Redux 🎶</h1>
 
 <p align="center">
-  A fork of <a href="https://github.com/manuel-rw/jellyfin-discord-music-bot" target="_blank">Manuel-RW’s Jellyfin Discord Music Bot</a>, with a new <code>/browse</code> command, more robust search system, and peristent volume!
+  A fork of <a href="https://github.com/manuel-rw/jellyfin-discord-music-bot" target="_blank">Manuel-RW’s Jellyfin Discord Music Bot</a>, with a new <code>/browse</code> command, more robust search system, and persistent volume!
   <br/>Massive thanks to <strong>Manuel</strong> for the original project.
 </p>
 
